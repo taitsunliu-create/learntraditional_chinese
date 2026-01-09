@@ -171,53 +171,9 @@
             margin-top: 20px; padding: 15px;
             background: #FFF8E1; border-radius: 12px; border: 2px solid #FFE082;
             text-align: left; display: none; color: #5D4037;
-            font-size: 18px; 
-            line-height: 1.8; /* 行高拉大，避免直式注音卡到下一行 */
-            font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
-            /* 恢復橫式書寫，避免變成橫向捲動 */
-            writing-mode: horizontal-tb; 
-            overflow-y: auto;
-            max-height: 300px; /* 超過高度才捲動 */
-        }
-
-        /* 單個字的容器：國字在左，注音在右 */
-        .zi-group {
-            display: inline-flex; /* 讓它們排成一列 */
-            align-items: center;  /* 垂直置中 */
-            margin-right: 4px;    /* 字與字之間的間距 */
-            vertical-align: middle;
-        }
-
-        /* 國字本體 */
-        .zi-char {
-            font-size: 24px;
-            line-height: 1;
-        }
-
-        /* 右側注音容器：垂直排列 */
-        .zi-zhuyin {
-            display: flex;
-            flex-direction: column; /* 讓ㄅㄆㄇ垂直堆疊 */
-            justify-content: center;
-            align-items: center;
-            margin-left: 2px;
-            transform: scale(0.7); /* 縮小注音 */
-            transform-origin: left center;
-            width: 15px; /* 固定寬度 */
-            line-height: 1.1;
-            color: #777;
-            font-family: "BiauKai", "標楷體", serif; /* 注音用楷體比較好看 */
-            font-weight: normal;
-        }
-
-        /* 設定注音顯示的位置 */
-        ruby {
-            ruby-position: right; /* 注音顯示在字的右邊 */
-        }
-        rt {
-            font-size: 0.6em; /* 注音字體大小 */
-            color: #888;      /* 注音顏色稍微淡一點 */
-            font-family: "BiauKai", "標楷體", serif; /* 注音用楷體比較好看 */
+            font-size: 16px; line-height: 1.6; 
+            /* 修改：改為圓潤字體組合 (英文圓體 + 中文黑體/圓體) */
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', 'Microsoft JhengHei', '微軟正黑體', sans-serif;
         }
 
         /* Modal */
@@ -588,6 +544,7 @@
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
             
+            // 1. 取得金鑰
             let apiKey = getApiKey();
             if (!apiKey) return; 
             apiKey = apiKey.trim();
@@ -595,21 +552,22 @@
             storyBox.style.display = 'block';
             storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在思考造詞造句...</div>';
 
-            const cacheKey = `vocab_v2_${char}`; // 換個 Key 避免讀到舊格式
+            const cacheKey = `vocab_${char}`; // 修改快取 Key 名稱以區隔舊資料
             
+            // 檢查快取
             if(localStorage.getItem(cacheKey)) {
                 renderContent(localStorage.getItem(cacheKey));
                 return;
             }
 
             try {
+                // 使用較穩定的 gemini-1.5-flash 模型 (原 gemini-3 可能為無效名稱)
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        // 修改 Prompt：請 AI 用簡單的括號格式回傳，方便我們切割處理
-                        parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n重點要求：\n- 請在每個國字後面用括號標示注音。格式範例：開(ㄎㄞ)心(ㄒㄧㄣ)、學(ㄒㄩㄝˊ)校(ㄒㄩㄝˊ)\n- 請直接列出內容，不要有標題。` }]
+                        contents: [{ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n請直接列出內容，不要有標題或多餘的開場白。格式範例：\n造詞：開心、心願\n造句：我希望能開心過每一天。` }] }]
                     })
                 });
                 
@@ -619,7 +577,7 @@
                 
                 if (data.candidates && data.candidates.length > 0) {
                     const text = data.candidates[0].content.parts[0].text;
-                    localStorage.setItem(cacheKey, text);
+                    localStorage.setItem(cacheKey, text); // 存入快取
                     renderContent(text);
                 } else {
                     storyBox.textContent = 'AI 暫時無法回應，請稍後再試。';
@@ -630,29 +588,15 @@
                 console.error(e);
             }
 
-            // 核心功能：將 "字(注音)" 轉換為 "直式注音 HTML"
+            // 內部輔助函式：負責渲染文字和小喇叭
             function renderContent(content) {
-                let cleanText = content.replace(/\*/g, '').trim();
+                // 將換行符號轉換為 HTML 換行，並移除可能的 Markdown 符號
+                const cleanText = content.replace(/\*/g, '').trim();
+                const htmlText = cleanText.replace(/\n/g, '<br>');
                 
-                // 1. 處理換行，加上 <br>
-                let html = cleanText.replace(/\n/g, '<br>');
-
-                // 2. [關鍵] 正規表達式：抓取 "中文字(注音)" 的模式
-                // 把 "學(ㄒㄩㄝˊ)" 轉換成 <div class="zi-group">...</div>
-                html = html.replace(/([\u4e00-\u9fa5])\s*[（(](.*?)[）)]/g, (match, word, zhuyin) => {
-                    // 將注音字串拆解成一個個字元 (例如 "ㄒㄩㄝˊ" -> ㄒ, ㄩ, ㄝ, ˊ)
-                    const zhuyinChars = zhuyin.split('').map(z => `<div>${z}</div>`).join('');
-                    
-                    return `<span class="zi-group">
-                                <span class="zi-char">${word}</span>
-                                <span class="zi-zhuyin">${zhuyinChars}</span>
-                            </span>`;
-                });
-
-                // 渲染到畫面上
                 storyBox.innerHTML = `
-                    <div style="display: flex; align-items: flex-start; gap: 10px;">
-                        <div style="flex: 1;">${html}</div>
+                    <div style="display: flex; align-items: flex-start; gap: 15px;">
+                        <div style="flex: 1; line-height: 1.8;">${htmlText}</div>
                         <button onclick="speakText(this.getAttribute('data-text'))" 
                                 data-text="${cleanText}"
                                 style="background: var(--accent-color); border: none; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
@@ -669,34 +613,34 @@
         // 新增：朗讀造詞造句的功能 (不消耗 API)
         // 新增：朗讀造詞造句的功能 (優化自然度)
         // 新增：朗讀造詞造句的功能 (分段朗讀 + 優化停頓)
-        // 新增：朗讀造詞造句的功能 (分段朗讀 + 聰明過濾注音)
-        // 新增：朗讀功能 (支援直書 Ruby 格式過濾)
-        // 新增：朗讀功能 (過濾括號注音，只唸國字)
         function speakText(text) {
-            window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel(); // 1. 先停止當前所有聲音
             
+            // 2. 取得最佳語音包 (Google > Microsoft > 其他)
             const voices = window.speechSynthesis.getVoices();
             const bestVoice = voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Google')) || 
                               voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Microsoft')) || 
                               voices.find(v => v.lang.includes('zh-TW'));
 
-            // 換行符號切割
+            // 3. 文字處理：將文字依照「換行」拆成陣列，這樣可以分段唸
+            // 過濾掉空行，避免頓太久
             const lines = text.split('\n').filter(line => line.trim() !== '');
 
+            // 4. 逐行朗讀 (利用佇列機制產生自然停頓)
             lines.forEach((line) => {
-                // 1. 把 "學(ㄒㄩㄝˊ)" 變成 "學" (使用正規表達式移除括號內容)
-                let textForSpeech = line.replace(/[（(].*?[)）]/g, '');
+                // 優化：將冒號「：」替換為「，」，讓語音在唸完標題(如：造詞)後會稍微換氣
+                let processedLine = line.replace(/：/g, '，');
                 
-                // 2. 處理標點停頓
-                textForSpeech = textForSpeech.replace(/：/g, '，');
-
-                const u = new SpeechSynthesisUtterance(textForSpeech);
+                const u = new SpeechSynthesisUtterance(processedLine);
                 u.lang = 'zh-TW';
-                u.rate = 0.85; 
-                u.pitch = 1.0;
+                u.rate = 0.85; // 設定 0.85，對孩子來說清楚且不拖泥帶水
+                u.pitch = 1.0; // 正常音高
 
-                if (bestVoice) u.voice = bestVoice;
+                if (bestVoice) {
+                    u.voice = bestVoice;
+                }
 
+                // 送出這一行 (瀏覽器唸完這一行後，會自動停頓一下才唸下一行)
                 window.speechSynthesis.speak(u);
             });
         }
