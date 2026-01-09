@@ -170,10 +170,31 @@
         #story-box {
             margin-top: 20px; padding: 15px;
             background: #FFF8E1; border-radius: 12px; border: 2px solid #FFE082;
-            text-align: left; display: none; color: #5D4037;
-            font-size: 16px; line-height: 1.6; 
-            /* 修改：改為圓潤字體組合 (英文圓體 + 中文黑體/圓體) */
-            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+            color: #5D4037;
+            font-size: 20px; /* 直書字體可以稍微大一點 */
+            line-height: 2;  /* 行距拉開，避免注音擠在一起 */
+            
+            /* --- 關鍵修改：直書設定 --- */
+            writing-mode: vertical-rl; /* 垂直書寫，從右到左 */
+            text-orientation: upright; /* 讓國字正向顯示 */
+            
+            /* 因為變成橫向捲動，需要設定高度與捲軸 */
+            height: 300px; /* 給一個固定高度讓文字流動 */
+            overflow-x: auto; /* 內容太多時出現橫向捲軸 */
+            overflow-y: hidden;
+            
+            font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+            display: none; /* 預設隱藏 */
+        }
+
+        /* 設定注音顯示的位置 */
+        ruby {
+            ruby-position: right; /* 注音顯示在字的右邊 */
+        }
+        rt {
+            font-size: 0.6em; /* 注音字體大小 */
+            color: #888;      /* 注音顏色稍微淡一點 */
+            font-family: "BiauKai", "標楷體", serif; /* 注音用楷體比較好看 */
         }
 
         /* Modal */
@@ -567,7 +588,9 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n請直接列出內容，不要有標題或多餘的開場白。格式範例：\n造詞：開心、心願\n造句：我希望能開心過每一天。` }] }]
+                        // 修改：強制要求 AI 在詞句後方加上注音，方便孩子閱讀
+// 修改 Prompt：要求 AI 輸出標準的 HTML Ruby 格式
+parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n重點要求：\n- 請使用 HTML <ruby> 標籤標示注音，讓注音顯示在字旁邊。例如：<ruby>學<rt>ㄒㄩㄝˊ</rt></ruby>\n- 請直接列出內容，不要有標題。格式範例：\n造詞：<ruby>開<rt>ㄎㄞ</rt></ruby><ruby>心<rt>ㄒㄧㄣ</rt></ruby>\n造句：<ruby>我<rt>ㄨㄛˇ</rt></ruby><ruby>很<rt>ㄏㄣˇ</rt></ruby><ruby>快<rt>ㄎㄨㄞˋ</rt></ruby><ruby>樂<rt>ㄌㄜˋ</rt></ruby>。` }]
                     })
                 });
                 
@@ -612,29 +635,42 @@
 
         // 新增：朗讀造詞造句的功能 (不消耗 API)
         // 新增：朗讀造詞造句的功能 (優化自然度)
+        // 新增：朗讀造詞造句的功能 (分段朗讀 + 優化停頓)
+        // 新增：朗讀造詞造句的功能 (分段朗讀 + 聰明過濾注音)
+        // 新增：朗讀功能 (支援直書 Ruby 格式過濾)
         function speakText(text) {
-            window.speechSynthesis.cancel(); // 先停止當前語音
-            const u = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.cancel();
             
-            // 1. 設定基礎參數：回復正常語速與音調，過慢或過高都會顯得機械化
-            u.rate = 0.9;  // 0.9 較適中 (0.8 會太拖，1.0 對小孩可能稍快)
-            u.pitch = 1.0; // 回復正常音高 (1.1 會有點尖銳像機器人)
-            u.lang = 'zh-TW';
-
-            // 2. [關鍵] 嘗試抓取更高品質的語音包
-            // 瀏覽器的語音清單是動態載入的，我們嘗試優先尋找 "Google" (Chrome常見) 或 "Microsoft" (Edge/Windows常見) 的語音
             const voices = window.speechSynthesis.getVoices();
-            
-            // 挑選邏輯：優先選含 "Google" 的中文 -> 其次選含 "Microsoft" 的中文 -> 最後選任何中文
             const bestVoice = voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Google')) || 
                               voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Microsoft')) || 
                               voices.find(v => v.lang.includes('zh-TW'));
-            
-            if (bestVoice) {
-                u.voice = bestVoice;
-            }
 
-            window.speechSynthesis.speak(u);
+            // 1. 因為 HTML 標籤會影響分段，我們先把 <br> 換成換行符號
+            let rawText = text.replace(/<br\s*\/?>/gi, '\n');
+
+            const lines = rawText.split('\n').filter(line => line.trim() !== '');
+
+            lines.forEach((line) => {
+                // 2. 清理 HTML 標籤，只保留國字來發音
+                // 先移除 <rt>...</rt> 裡面的注音內容 (這樣就不會唸出ㄅㄆㄇ)
+                let textForSpeech = line.replace(/<rt>.*?<\/rt>/g, '');
+                
+                // 再移除剩下的 <ruby> 等標籤
+                textForSpeech = textForSpeech.replace(/<[^>]+>/g, '');
+                
+                // 處理標點停頓
+                textForSpeech = textForSpeech.replace(/：/g, '，');
+
+                const u = new SpeechSynthesisUtterance(textForSpeech);
+                u.lang = 'zh-TW';
+                u.rate = 0.85; 
+                u.pitch = 1.0;
+
+                if (bestVoice) u.voice = bestVoice;
+
+                window.speechSynthesis.speak(u);
+            });
         }
 
         // --- PWA Service Worker 註冊 ---
