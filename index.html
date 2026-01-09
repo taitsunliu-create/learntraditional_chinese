@@ -53,15 +53,35 @@
 
         .app-container {
             background: var(--surface-color);
-            padding: 30px;
+            padding: 20px; /* 手機版邊距縮小，爭取空間 */
             border-radius: 24px;
             box-shadow: 0 8px 20px rgba(74, 144, 226, 0.15);
             text-align: center;
             border: 2px solid #E5E7EB;
-            width: 100%;
-            max-width: 400px;
+            width: 95%; /* 手機版佔滿 95% 寬度 */
+            max-width: 400px; /* 手機版預設最大寬度 */
             position: relative;
+            /* 使用 Grid 佈局以便在電腦版重新排列 */
+            display: grid;
+            gap: 15px;
+            /* 預設手機版：單欄由上而下 */
+            grid-template-columns: 1fr;
+            grid-template-areas: 
+                "title"
+                "input"
+                "canvas"
+                "status"
+                "controls"
+                "story";
         }
+        
+        /* 指定各元件的 Grid 區域名稱 */
+        h1 { grid-area: title; margin-bottom: 10px; }
+        .input-group { grid-area: input; margin-bottom: 10px; }
+        .practice-wrapper { grid-area: canvas; margin-bottom: 0; }
+        #status { grid-area: status; margin-bottom: 0; }
+        .controls { grid-area: controls; }
+        #story-box { grid-area: story; }
 
         /* 輸入區塊 */
         .input-group {
