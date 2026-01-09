@@ -183,8 +183,24 @@
             width: 90%; max-width: 400px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: left;
         }
-        .modal h2 { margin-top: 0; color: #333; font-size: 1.2rem; }
-        .modal p { color: #666; font-size: 0.9rem; line-height: 1.5; }
+        .modal h2 { 
+            margin-top: 0; 
+            color: #333; 
+            font-size: 1.4rem; 
+            /* 新增：圓潤字體設定 */
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', sans-serif;
+            /* 新增：讓 SVG 圖示與文字垂直置中對齊 */
+            display: flex;
+            align-items: center;
+            gap: 10px; /* 圖示與文字的間距 */
+        }
+        .modal p { 
+            color: #666; 
+            font-size: 1rem; 
+            line-height: 1.5; 
+            /* 新增：圓潤字體設定 */
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', sans-serif;
+        }
         .modal input {
             width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #ddd;
             border-radius: 8px; box-sizing: border-box; font-family: monospace;
@@ -249,7 +265,13 @@
 
     <div id="password-modal" class="modal-overlay" style="display: none;">
         <div class="modal">
-            <h2>🔐 安全驗證</h2>
+            <h2>
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                安全驗證
+            </h2>
             <p>請輸入您的密碼以解鎖 AI 功能：</p>
             <input type="password" id="app-password" placeholder="輸入解密密碼" onkeypress="handleEnter(event)">
             <div class="modal-btns">
