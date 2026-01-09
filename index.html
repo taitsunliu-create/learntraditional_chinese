@@ -201,31 +201,16 @@
 <body>
 
     <!-- 設定按鈕 -->
-    <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 100;">
-        <button class="settings-btn" style="position: static;" onclick="resetKey()" title="重設/清除金鑰">
+    <div style="position: absolute; top: 20px; right: 20px; z-index: 100;">
+        <button class="settings-btn" style="position: static;" onclick="resetKey()" title="重設狀態/清除快取">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
         </button>
-        <button class="settings-btn" style="position: static;" onclick="openSettings()" title="查看設定">
-            <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-        </button>
     </div>
 
-    <!-- 設定視窗 -->
-    <div id="settings-modal" class="modal-overlay">
-        <div class="modal">
-            <h2>🔑 設定 API Key</h2>
-            <p>請輸入您的 Gemini API Key 以啟用「自然語音」與「AI 故事」。<br>金鑰僅儲存於您的瀏覽器。</p>
-            <input type="password" id="api-key-input" placeholder="貼上您的 API Key...">
-            <div class="modal-btns">
-                <button class="modal-btn btn-cancel" onclick="closeSettings()">取消</button>
-                <button class="modal-btn btn-save" onclick="saveApiKey()">儲存</button>
-            </div>
-        </div>
-    </div>
-
+    
     <div class="app-container">
         <h1>快樂學寫字</h1>
         
@@ -328,68 +313,37 @@
             });
         };
 
-        // --- 金鑰管理 (AES 加密版) ---
-        // 請在此設定您的加密密碼 (Salt)，增加安全性
+        // --- 金鑰管理 (內建加密金鑰版) ---
+        
+        // 1. 加密密碼 (Salt)
         const SECRET_PHRASE = "MySecureSalt_2026_Kyushu"; 
+        
+        // 2. 內建的加密金鑰 (已從您的註解中提取並填入)
+        const EMBEDDED_KEY = "U2FsdGVkX1/SsNOuGf7Bp32Kcd4/7G9sg0SqEveKiJxvVuNaQQAC2fJ+G9n7pBhWzUy18LIIQw241HuJDfmPjg==";
 
-        function openSettings() {
-            document.getElementById('settings-modal').style.display = 'flex';
-            // 注意：基於安全考量，開啟時我們不解密顯示回填，而是讓欄位留空或顯示已設定
-            const savedEncrypted = localStorage.getItem('GEMINI_API_KEY_ENC');
-            if (savedEncrypted) {
-                document.getElementById('api-key-input').placeholder = "已設定加密金鑰 (若需修改請直接輸入)";
-                document.getElementById('api-key-input').value = ""; 
-            }
-        }
-
-        function closeSettings() {
-            document.getElementById('settings-modal').style.display = 'none';
-        }
-
-        // 新增：重設金鑰功能
-        function resetKey() {
-            if(confirm('確定要清除目前的金鑰並重新設定嗎？')) {
-                localStorage.removeItem('GEMINI_API_KEY_ENC');
-                alert('金鑰已清除，請輸入新的金鑰。');
-                openSettings();
-            }
-        }
-
-        function saveApiKey() {
-            const rawKey = document.getElementById('api-key-input').value.trim();
-            
-            if (rawKey) {
-                try {
-                    // 使用 AES 加密
-                    const encrypted = CryptoJS.AES.encrypt(rawKey, SECRET_PHRASE).toString();
-                    localStorage.setItem('GEMINI_API_KEY_ENC', encrypted);
-                    alert('金鑰已加密並儲存！');
-                    closeSettings();
-                } catch (e) {
-                    alert('加密失敗：' + e.message);
-                }
-            } else {
-                // 如果是空的，視為刪除
-                localStorage.removeItem('GEMINI_API_KEY_ENC');
-                alert('金鑰已移除！');
-                closeSettings();
-            }
-        }
-/*U2FsdGVkX1/SsNOuGf7Bp32Kcd4/7G9sg0SqEveKiJxvVuNaQQAC2fJ+G9n7pBhWzUy18LIIQw241HuJDfmPjg==*/
+        // 取得金鑰：直接解密內建字串，不需讀取 localStorage
         function getApiKey() {
-            const encrypted = localStorage.getItem('GEMINI_API_KEY_ENC');
-            if (!encrypted) return null;
-
+            if (!EMBEDDED_KEY) return null;
             try {
-                // 使用 AES 解密
-                const bytes = CryptoJS.AES.decrypt(encrypted, SECRET_PHRASE);
+                const bytes = CryptoJS.AES.decrypt(EMBEDDED_KEY, SECRET_PHRASE);
                 const originalText = bytes.toString(CryptoJS.enc.Utf8);
                 return originalText;
             } catch (e) {
-                console.error("解密失敗", e);
+                console.error("解密失敗，請檢查密碼或加密字串", e);
                 return null;
             }
         }
+
+        // 重設功能：因為金鑰已寫死，此按鈕現在改為「清除快取並重整」
+        // (例如清除 AI 寫過的故事快取，讓 App 回到初始狀態)
+        function resetKey() {
+            if(confirm('確定要清除所有暫存資料 (如故事快取) 並重新整理嗎？')) {
+                localStorage.clear(); 
+                location.reload();
+            }
+        }
+        
+        // 移除舊的 openSettings, saveApiKey 等函式，因為不再需要視窗操作
 
         // --- 核心功能 ---
         function loadChar() {
