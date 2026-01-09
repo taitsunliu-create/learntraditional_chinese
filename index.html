@@ -517,10 +517,10 @@
             // 由於 TTS API 限制較多，這裡使用瀏覽器語音作為穩定備案
             try {
                 // 如果您確實有開通 TTS，請取消下方註解並使用 gemini-1.5-flash
-                
+                /*
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 // ... TTS 呼叫邏輯 ...
-                
+                */
                 throw new Error("使用瀏覽器發音");
             } catch (e) {
                 console.log("轉為瀏覽器發音");
