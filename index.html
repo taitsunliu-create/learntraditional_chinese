@@ -253,7 +253,17 @@
 
         <div id="story-box"></div>
     </div>
-
+<div id="password-modal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h2>🔐 安全驗證</h2>
+            <p>請輸入您的密碼以解鎖 AI 功能：</p>
+            <input type="password" id="app-password" placeholder="輸入解密密碼" onkeypress="handleEnter(event)">
+            <div class="modal-btns">
+                <button class="modal-btn btn-cancel" onclick="closePasswordModal()">取消</button>
+                <button class="modal-btn btn-save" onclick="verifyPassword()">解鎖</button>
+            </div>
+        </div>
+    </div>
     <script>
         let writer;
         
@@ -313,33 +323,77 @@
             });
         };
 
-        // --- 金鑰管理 (內建加密金鑰版) ---
+        // --- 金鑰管理 (即時解密版) ---
         
-        // 1. 加密密碼 (Salt)
-        const SECRET_PHRASE = "MySecureSalt_2026_Kyushu"; 
+        // 1. 您的加密字串 (請填入您加密後的那一長串亂碼)
+        const EMBEDDED_KEY = "U2FsdGVkX1/SsNOuGf7Bp32Kcd4/7G9sg0SqEveKiJxvVuNaQQAC2fJ+G9n7pBhWzUy18LIIQw241HuJDfmPjg=="; 
         
-        // 2. 內建的加密金鑰 (已從您的註解中提取並填入)
-        const EMBEDDED_KEY = "U2FsdGVkX1/SsNOuGf7Bp32Kcd4/7G9sg0SqEveKiJxvVuNaQQAC2fJ+G9n7pBhWzUy18LIIQw241HuJDfmPjg==";
+        // 用來暫存解密後的金鑰 (網頁重整後會消失，保證安全)
+        let sessionApiKey = null;
 
-        // 取得金鑰：直接解密內建字串，不需讀取 localStorage
+        // 檢查是否有可用金鑰，若無則跳出視窗
         function getApiKey() {
-            if (!EMBEDDED_KEY) return null;
+            if (sessionApiKey) return sessionApiKey;
+            
+            // 如果還沒解鎖，開啟密碼視窗
+            document.getElementById('password-modal').style.display = 'flex';
+            document.getElementById('app-password').focus();
+            return null;
+        }
+
+        // 驗證密碼並嘗試解密
+        function verifyPassword() {
+            const password = document.getElementById('app-password').value;
+            const status = document.getElementById('status');
+            
+            if (!password) {
+                alert("請輸入密碼");
+                return;
+            }
+
             try {
-                const bytes = CryptoJS.AES.decrypt(EMBEDDED_KEY, SECRET_PHRASE);
+                // 嘗試使用輸入的密碼解密
+                const bytes = CryptoJS.AES.decrypt(EMBEDDED_KEY, password);
                 const originalText = bytes.toString(CryptoJS.enc.Utf8);
-                return originalText;
+
+                if (originalText.startsWith("AI")) { // 簡單檢查：Google API Key 通常以 AI 開頭
+                    sessionApiKey = originalText;
+                    alert("✅ 解鎖成功！現在可以使用 AI 功能了。");
+                    closePasswordModal();
+                    
+                    // 清空輸入框避免殘留
+                    document.getElementById('app-password').value = ''; 
+                } else {
+                    throw new Error("密碼錯誤");
+                }
             } catch (e) {
-                console.error("解密失敗，請檢查密碼或加密字串", e);
-                return null;
+                alert("❌ 密碼錯誤或是加密字串不正確，解密失敗。");
+                console.error(e);
             }
         }
 
-        // 重設功能：因為金鑰已寫死，此按鈕現在改為「清除快取並重整」
-        // (例如清除 AI 寫過的故事快取，讓 App 回到初始狀態)
+        function closePasswordModal() {
+            document.getElementById('password-modal').style.display = 'none';
+        }
+
+        // 讓使用者按 Enter 也能送出
+        function handleEnter(e) {
+            if (e.key === 'Enter') verifyPassword();
+        }
+
+        // 重設/鎖定功能 (原本的 resetKey)
         function resetKey() {
-            if(confirm('確定要清除所有暫存資料 (如故事快取) 並重新整理嗎？')) {
-                localStorage.clear(); 
-                location.reload();
+            if(sessionApiKey) {
+                if(confirm('確定要鎖定並清除目前的連線嗎？')) {
+                    sessionApiKey = null;
+                    alert('已鎖定，下次使用需重新輸入密碼。');
+                }
+            } else {
+                // 如果本來就沒解鎖，執行清除快取
+                if(confirm('確定要清除所有暫存資料 (如故事快取) 並重新整理嗎？')) {
+                    localStorage.clear(); 
+                    location.reload();
+                }
             }
         }
         
@@ -426,8 +480,14 @@
             const char = document.getElementById('char-input').value;
             const btn = document.getElementById('btn-speak');
             const status = document.getElementById('status');
+            
+            // --- 修改點：取得金鑰 ---
             const apiKey = getApiKey();
+            // 如果回傳 null，代表正在等待輸入密碼，直接結束函式，不要執行後續動作
+            if (!apiKey) return; 
+            // -----------------------
 
+       
             // 1. 如果有 API Key，嘗試使用 Gemini TTS (自然音)
             if (apiKey) {
                 btn.classList.add('speaking');
@@ -543,17 +603,12 @@
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
             
-            // 取得金鑰
+           // 取得金鑰
             const apiKey = getApiKey();
             
-            // --- 修正點開始 ---
-            // 舊版是呼叫 openSettings()，但該函式已被移除。
-            // 現在改為直接檢查，若無金鑰代表解密失敗或變數設定錯誤。
-            if (!apiKey) {
-                alert("系統錯誤：無法讀取金鑰，請檢查程式碼中的 EMBEDDED_KEY 設定。");
-                return;
-            }
-            // --- 修正點結束 ---
+            // --- 修改後：若無金鑰 (代表視窗已開啟)，直接安靜結束，等待使用者輸入 ---
+            if (!apiKey) return; 
+            // -------------------------------------------------------------
 
             storyBox.style.display = 'block';
             storyBox.textContent = 'AI 正在想故事...';
