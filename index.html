@@ -612,29 +612,37 @@
 
         // 新增：朗讀造詞造句的功能 (不消耗 API)
         // 新增：朗讀造詞造句的功能 (優化自然度)
+        // 新增：朗讀造詞造句的功能 (分段朗讀 + 優化停頓)
         function speakText(text) {
-            window.speechSynthesis.cancel(); // 先停止當前語音
-            const u = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.cancel(); // 1. 先停止當前所有聲音
             
-            // 1. 設定基礎參數：回復正常語速與音調，過慢或過高都會顯得機械化
-            u.rate = 0.9;  // 0.9 較適中 (0.8 會太拖，1.0 對小孩可能稍快)
-            u.pitch = 1.0; // 回復正常音高 (1.1 會有點尖銳像機器人)
-            u.lang = 'zh-TW';
-
-            // 2. [關鍵] 嘗試抓取更高品質的語音包
-            // 瀏覽器的語音清單是動態載入的，我們嘗試優先尋找 "Google" (Chrome常見) 或 "Microsoft" (Edge/Windows常見) 的語音
+            // 2. 取得最佳語音包 (Google > Microsoft > 其他)
             const voices = window.speechSynthesis.getVoices();
-            
-            // 挑選邏輯：優先選含 "Google" 的中文 -> 其次選含 "Microsoft" 的中文 -> 最後選任何中文
             const bestVoice = voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Google')) || 
                               voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Microsoft')) || 
                               voices.find(v => v.lang.includes('zh-TW'));
-            
-            if (bestVoice) {
-                u.voice = bestVoice;
-            }
 
-            window.speechSynthesis.speak(u);
+            // 3. 文字處理：將文字依照「換行」拆成陣列，這樣可以分段唸
+            // 過濾掉空行，避免頓太久
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+
+            // 4. 逐行朗讀 (利用佇列機制產生自然停頓)
+            lines.forEach((line) => {
+                // 優化：將冒號「：」替換為「，」，讓語音在唸完標題(如：造詞)後會稍微換氣
+                let processedLine = line.replace(/：/g, '，');
+                
+                const u = new SpeechSynthesisUtterance(processedLine);
+                u.lang = 'zh-TW';
+                u.rate = 0.85; // 設定 0.85，對孩子來說清楚且不拖泥帶水
+                u.pitch = 1.0; // 正常音高
+
+                if (bestVoice) {
+                    u.voice = bestVoice;
+                }
+
+                // 送出這一行 (瀏覽器唸完這一行後，會自動停頓一下才唸下一行)
+                window.speechSynthesis.speak(u);
+            });
         }
 
         // --- PWA Service Worker 註冊 ---
