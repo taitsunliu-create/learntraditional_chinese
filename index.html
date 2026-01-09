@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>兒童中文筆順練習 (自然語音版)</title>
+    
+    <!-- 1. 引入 Hanzi Writer (筆順) -->
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #4A90E2; /* 藍色實線 */
+            --accent-color: #FFB347;  /* 橘色 (隨機按鈕) */
+            --grid-line-color: #BDBDBD; /* 灰色定位線 */
+            --bg-color: #F9FAFB;
+            --surface-color: #FFFFFF;
+        }
+
+        body {
+            font-family: "KaiTi", "BiauKai", "DFKai-SB", "標楷體", serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            overscroll-behavior: none;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.6rem;
+            letter-spacing: 2px;
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', sans-serif;
+            position: relative;
+        }
+
+        /* 設定按鈕 (右上角) */
+        .settings-btn {
+            position: absolute; top: 20px; right: 20px;
+            background: none; border: none; cursor: pointer; color: #999; transition: color 0.3s;
+        }
+        .settings-btn:hover { color: var(--primary-color); }
+        .settings-btn svg { width: 24px; height: 24px; fill: currentColor; }
+
+        .app-container {
+            background: var(--surface-color);
+            padding: 30px;
+            border-radius: 24px;
+            box-shadow: 0 8px 20px rgba(74, 144, 226, 0.15);
+            text-align: center;
+            border: 2px solid #E5E7EB;
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+        }
+
+        /* 輸入區塊 */
+        .input-group {
+            display: flex; justify-content: center; align-items: center;
+            gap: 10px; margin-bottom: 25px;
+        }
+
+        input#char-input {
+            font-size: 24px; padding: 8px; width: 80px; text-align: center;
+            border: 3px solid #E0E0E0; border-radius: 12px; outline: none;
+            color: var(--primary-color); font-weight: bold;
+            font-family: "KaiTi", "BiauKai", "標楷體", serif;
+            height: 48px; box-sizing: border-box;
+        }
+        input#char-input:focus { border-color: var(--primary-color); }
+
+        .btn-mini {
+            background: var(--primary-color); color: white; border: none;
+            width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        .btn-mini:active { transform: scale(0.95); }
+        .btn-mini svg { width: 24px; height: 24px; fill: white; }
+
+        .btn-random { background: var(--accent-color); }
+
+        /* === 練習區佈局 === */
+        .practice-wrapper {
+            display: flex; justify-content: center; margin-bottom: 25px;
+        }
+
+        /* === 筆順格 === */
+        #hanzi-box {
+            position: relative;
+            width: 260px; height: 260px; min-width: 260px; min-height: 260px;
+            border: 4px solid var(--primary-color); 
+            background: #fff; border-radius: 8px; overflow: hidden; z-index: 1; 
+        }
+        #hanzi-box svg { position: relative; z-index: 10; }
+
+        /* 內部：灰色十字虛線 */
+        #hanzi-box::before {
+            content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 1px;
+            border-top: 2px dashed var(--grid-line-color); z-index: 0; pointer-events: none;
+        }
+        #hanzi-box::after {
+            content: ''; position: absolute; left: 50%; top: 0; height: 100%; width: 1px;
+            border-left: 2px dashed var(--grid-line-color); z-index: 0; pointer-events: none;
+        }
+
+        .controls {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        }
+
+        .btn {
+            background: white; border: 2px solid var(--primary-color); color: var(--primary-color);
+            padding: 12px; border-radius: 12px; cursor: pointer;
+            font-size: 16px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            font-family: 'Helvetica Rounded', sans-serif;
+        }
+        .btn:hover { background: var(--primary-color); color: white; }
+        .btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        .btn-speak { border-color: #9B59B6; color: #9B59B6; }
+        .btn-speak:hover { background: #9B59B6; color: white; }
+        
+        .btn-story { border-color: #FFB347; color: #E67E22; }
+        .btn-story:hover { background: #FFB347; color: white; }
+
+        /* 發音中狀態 */
+        .speaking {
+            background-color: #9B59B6 !important;
+            color: white !important;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        #story-box {
+            margin-top: 20px; padding: 15px;
+            background: #FFF8E1; border-radius: 12px; border: 2px solid #FFE082;
+            text-align: left; display: none; color: #5D4037;
+            font-size: 16px; line-height: 1.6; font-family: "KaiTi", "BiauKai", "標楷體", serif;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            display: none; justify-content: center; align-items: center;
+        }
+        .modal {
+            background: white; padding: 25px; border-radius: 16px;
+            width: 90%; max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: left;
+        }
+        .modal h2 { margin-top: 0; color: #333; font-size: 1.2rem; }
+        .modal p { color: #666; font-size: 0.9rem; line-height: 1.5; }
+        .modal input {
+            width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #ddd;
+            border-radius: 8px; box-sizing: border-box; font-family: monospace;
+        }
+        .modal-btns { text-align: right; margin-top: 15px; }
+        .modal-btn {
+            padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+            font-weight: bold; margin-left: 10px;
+        }
+        .btn-cancel { background: #eee; color: #555; }
+        .btn-save { background: var(--primary-color); color: white; }
+    </style>
+</head>
+<body>
+
+    <!-- 設定按鈕 -->
+    <button class="settings-btn" onclick="openSettings()" title="設定 API Key">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
+
+    <!-- 設定視窗 -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>🔑 設定 API Key</h2>
+            <p>請輸入您的 Gemini API Key 以啟用「自然語音」與「AI 故事」。<br>金鑰僅儲存於您的瀏覽器。</p>
+            <input type="password" id="api-key-input" placeholder="貼上您的 API Key...">
+            <div class="modal-btns">
+                <button class="modal-btn btn-cancel" onclick="closeSettings()">取消</button>
+                <button class="modal-btn btn-save" onclick="saveApiKey()">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <h1>快樂學寫字</h1>
+        
+        <div class="input-group">
+            <input type="text" id="char-input" value="學" maxlength="1">
+            
+            <button class="btn-mini" onclick="loadChar()" title="載入輸入的字">
+                <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+            </button>
+            
+            <button class="btn-mini btn-random" onclick="randomChar()" title="隨機生字挑戰">
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM6 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0-12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0-12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg>
+            </button>
+        </div>
+
+        <div class="practice-wrapper">
+            <div id="hanzi-box"></div>
+        </div>
+        
+        <div id="status" style="height:20px; color:#888; margin-bottom:10px; font-weight:bold; font-family: sans-serif;"></div>
+
+        <div class="controls">
+            <button class="btn" onclick="animateStroke()">
+                <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                看筆順
+            </button>
+            <button class="btn" onclick="startQuiz()">
+                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                自己寫
+            </button>
+            <button class="btn btn-speak" id="btn-speak" onclick="speak()">
+                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                聽發音
+            </button>
+            <button class="btn btn-story" onclick="getStory()">
+                <svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+                AI 故事
+            </button>
+        </div>
+
+        <div id="story-box"></div>
+    </div>
+
+    <script>
+        let writer;
+        
+        // --- 高年級挑戰字庫 (約 1000 字) ---
+        const commonChars = [
+            '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '萬', '億', '兆',
+            '人', '口', '手', '足', '頭', '目', '耳', '鼻', '舌', '身', '意', '心', '血', '骨', '肉',
+            '日', '月', '星', '辰', '風', '雲', '雨', '雪', '雷', '電', '天', '地', '山', '川', '河', '海',
+            '金', '木', '水', '火', '土', '石', '田', '禾', '米', '竹', '林', '森', '草', '花', '果', '實',
+            '宇', '宙', '洪', '荒', '盈', '昃', '晨', '宿', '列', '張', '寒', '暑', '往', '來', '秋', '收', '冬', '藏',
+            '閏', '餘', '成', '歲', '律', '呂', '調', '陽', '雲', '騰', '致', '雨', '露', '結', '為', '霜',
+            '環', '境', '汙', '染', '保', '護', '生', '態', '平', '衡', '資', '源', '回', '收', '節', '約',
+            '觀', '察', '實', '驗', '假', '設', '證', '明', '分', '析', '統', '計', '歸', '納', '演', '繹',
+            '國', '家', '政', '治', '經', '濟', '社', '會', '文', '化', '歷', '史', '地', '理', '公', '民',
+            '民', '主', '自', '由', '法', '治', '人', '權', '平', '等', '正', '義', '和', '平', '合', '作',
+            '選', '舉', '投', '票', '憲', '法', '法', '律', '規', '則', '道', '德', '倫', '理', '責', '任',
+            '傳', '統', '習', '俗', '節', '慶', '藝', '術', '音', '樂', '美', '術', '體', '育', '健', '康',
+            '愛', '恨', '情', '仇', '喜', '怒', '哀', '樂', '悲', '歡', '離', '合', '恩', '怨', '情', '誼',
+            '思', '考', '想', '像', '記', '憶', '學', '習', '認', '識', '理', '解', '體', '會', '感', '受',
+            '勇', '氣', '智', '慧', '仁', '慈', '誠', '實', '信', '用', '謙', '虛', '禮', '貌', '孝', '順',
+            '夢', '想', '希', '望', '目', '標', '計', '畫', '成', '功', '失', '敗', '挫', '折', '挑', '戰',
+            '跑', '跳', '走', '坐', '臥', '立', '行', '止', '進', '退', '升', '降', '起', '伏', '開', '關',
+            '看', '聽', '說', '讀', '寫', '畫', '唱', '跳', '演', '奏', '製', '作', '發', '明', '創', '造',
+            '吃', '喝', '拉', '撒', '睡', '醒', '穿', '脫', '戴', '摘', '拿', '放', '提', '攜', '推', '拉',
+            '尋', '找', '發', '現', '探', '索', '研', '究', '討', '論', '溝', '通', '協', '調', '解', '決',
+            '大', '小', '多', '少', '長', '短', '高', '矮', '肥', '瘦', '粗', '細', '厚', '薄', '深', '淺',
+            '快', '慢', '早', '晚', '新', '舊', '老', '少', '真', '假', '是', '非', '善', '惡', '美', '醜',
+            '紅', '橙', '黃', '綠', '藍', '靛', '紫', '黑', '白', '灰', '金', '銀', '透', '明', '混', '濁',
+            '香', '臭', '酸', '甜', '苦', '辣', '鹹', '淡', '冷', '熱', '溫', '暖', '涼', '爽', '舒', '適',
+            '犧', '牲', '奉', '獻', '榮', '譽', '警', '察', '醫', '生', '護', '士', '消', '防', '郵', '差',
+            '猶', '豫', '彷', '彿', '徘', '徊', '徜', '徉', '躊', '躇', '尷', '尬', '蹣', '跚', '婀', '娜',
+            '燦', '爛', '輝', '煌', '璀', '璨', '晶', '瑩', '剔', '透', '玲', '瓏', '精', '緻', '細', '膩',
+            '蜿', '蜒', '崎', '嶇', '坎', '坷', '平', '坦', '寬', '闊', '廣', '大', '遼', '闊', '無', '邊',
+            '澎', '湃', '洶', '湧', '浩', '瀚', '渺', '小', '微', '不', '足', '道', '舉', '世', '聞', '名',
+            '興', '高', '采', '烈', '垂', '頭', '喪', '氣', '心', '花', '怒', '放', '愁', '眉', '苦', '臉',
+            '七', '手', '八', '腳', '手', '忙', '腳', '亂', '目', '不', '轉', '睛', '聚', '精', '會', '神',
+            '車', '水', '馬', '龍', '人', '山', '人', '海', '摩', '肩', '接', '踵', '絡', '繹', '不', '絕',
+            '津', '津', '有', '味', '狼', '吞', '虎', '嚥', '細', '嚼', '慢', '嚥', '食', '指', '大', '動',
+            '恍', '然', '大', '悟', '茅', '塞', '頓', '開', '一', '知', '半', '解', '不', '求', '甚', '解',
+            '畫', '蛇', '添', '足', '多', '此', '一', '舉', '弄', '巧', '成', '拙', '適', '得', '其', '反',
+            '守', '株', '待', '兔', '刻', '舟', '求', '劍', '掩', '耳', '盜', '鈴', '自', '欺', '欺', '人',
+            '狐', '假', '虎', '威', '仗', '勢', '欺', '人', '狗', '仗', '人', '勢', '為', '虎', '作', '倀',
+            '井', '底', '之', '蛙', '夜', '郎', '自', '大', '管', '中', '窺', '豹', '以', '管', '窺', '天',
+            '龜', '兔', '賽', '跑', '驕', '兵', '必', '敗', '持', '之', '以', '恆', '有', '志', '者', '事', '竟', '成'
+        ];
+
+        window.onload = function() {
+            loadChar();
+            
+            // 檢查是否已有 Key
+            if (!localStorage.getItem('GEMINI_API_KEY')) {
+                // openSettings(); 
+            }
+
+            document.getElementById('char-input').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') loadChar();
+            });
+        };
+
+        // --- 金鑰管理 ---
+        function openSettings() {
+            document.getElementById('settings-modal').style.display = 'flex';
+            document.getElementById('api-key-input').value = localStorage.getItem('GEMINI_API_KEY') || '';
+        }
+        function closeSettings() {
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+        function saveApiKey() {
+            const key = document.getElementById('api-key-input').value.trim();
+            if (key) {
+                localStorage.setItem('GEMINI_API_KEY', key);
+                alert('金鑰已儲存！');
+                closeSettings();
+            } else {
+                localStorage.removeItem('GEMINI_API_KEY');
+                alert('金鑰已移除！');
+                closeSettings();
+            }
+        }
+        function getApiKey() {
+            return localStorage.getItem('GEMINI_API_KEY');
+        }
+
+        // --- 核心功能 ---
+        function loadChar() {
+            const char = document.getElementById('char-input').value.trim();
+            const hanziBox = document.getElementById('hanzi-box');
+            const status = document.getElementById('status');
+            const storyBox = document.getElementById('story-box');
+
+            if (!char) return;
+
+            hanziBox.innerHTML = '';
+            storyBox.style.display = 'none';
+            status.textContent = '載入中...';
+            status.style.color = '#888';
+
+            // 顯示筆順
+            try {
+                writer = HanziWriter.create('hanzi-box', char, {
+                    width: 260,
+                    height: 260,
+                    padding: 20,
+                    strokeColor: '#4A90E2',
+                    outlineColor: '#BDBDBD',
+                    showOutline: true,
+                    drawingWidth: 25,
+                    radicalColor: '#FFB347'
+                });
+                status.textContent = '準備就緒';
+            } catch (e) {
+                status.textContent = '找不到筆順資料';
+                status.style.color = 'red';
+            }
+        }
+
+        // 新增功能：隨機選字
+        function randomChar() {
+            const randomIndex = Math.floor(Math.random() * commonChars.length);
+            const randomChar = commonChars[randomIndex];
+            
+            // 更新輸入框並載入
+            document.getElementById('char-input').value = randomChar;
+            loadChar();
+        }
+
+        function animateStroke() {
+            if(writer) {
+                document.getElementById('status').textContent = '觀察筆順...';
+                writer.animateCharacter();
+            }
+        }
+
+        function startQuiz() {
+            if(writer) {
+                document.getElementById('status').textContent = '請開始寫字...';
+                writer.quiz({
+                    onMistake: () => {
+                        const s = document.getElementById('status');
+                        s.textContent = '筆順錯囉！';
+                        s.style.color = 'red';
+                        document.getElementById('hanzi-box').animate([
+                            { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, 
+                            { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }
+                        ], { duration: 300 });
+                    },
+                    onCorrectStroke: () => {
+                        document.getElementById('status').textContent = '很棒！';
+                        document.getElementById('status').style.color = '#4A90E2';
+                    },
+                    onComplete: () => {
+                        const s = document.getElementById('status');
+                        s.textContent = '恭喜！寫完了！🎉';
+                        s.style.color = '#2ECC71';
+                    }
+                });
+            }
+        }
+
+        // --- 核心修改：自然語音功能 ---
+        async function speak() {
+            const char = document.getElementById('char-input').value;
+            const btn = document.getElementById('btn-speak');
+            const status = document.getElementById('status');
+            const apiKey = getApiKey();
+
+            // 1. 如果有 API Key，嘗試使用 Gemini TTS (自然音)
+            if (apiKey) {
+                btn.classList.add('speaking');
+                status.textContent = "AI 發音中...";
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: char }] }], // 簡單的文字提示
+                            generationConfig: {
+                                responseModalities: ["AUDIO"],
+                                speechConfig: {
+                                    voiceConfig: {
+                                        prebuiltVoiceConfig: { voiceName: "Kore" } // 使用 Kore 或 Zephyr
+                                    }
+                                }
+                            }
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].inlineData) {
+                        const audioData = data.candidates[0].content.parts[0].inlineData.data;
+                        await playPcmData(audioData);
+                        status.textContent = "發音完成";
+                        btn.classList.remove('speaking');
+                        return; // 成功，結束函式
+                    }
+                } catch (e) {
+                    console.error("AI TTS Failed, falling back", e);
+                }
+                btn.classList.remove('speaking');
+            }
+
+            // 2. 降級備援：如果沒 Key 或 API 失敗，使用瀏覽器發音 (機器人音)
+            status.textContent = "瀏覽器發音...";
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(char);
+            u.lang = 'zh-TW';
+            u.rate = 0.3; // 慢速
+            window.speechSynthesis.speak(u);
+        }
+
+        // 輔助函式：播放 Base64 PCM 音訊
+        async function playPcmData(base64Data) {
+            try {
+                // 1. 解碼 Base64
+                const binaryString = window.atob(base64Data);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                // 2. 加上 WAV Header
+                const wavBytes = createWavHeader(bytes);
+                
+                // 3. 播放
+                const blob = new Blob([wavBytes], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
+                await audio.play();
+            } catch (e) {
+                console.error("Audio playback error", e);
+            }
+        }
+
+        // 輔助函式：建立 WAV Header (24kHz, 16bit, Mono)
+        function createWavHeader(pcmData) {
+            const numChannels = 1;
+            const sampleRate = 24000;
+            const bitsPerSample = 16;
+            const blockAlign = numChannels * bitsPerSample / 8;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = pcmData.length;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+
+            // RIFF chunk
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            // fmt chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true);  // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            // data chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            // Write PCM data
+            const pcmView = new Uint8Array(buffer, 44);
+            pcmView.set(pcmData);
+
+            return buffer;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        async function getStory() {
+            const char = document.getElementById('char-input').value;
+            const storyBox = document.getElementById('story-box');
+            const apiKey = getApiKey();
+            
+            if (!apiKey) {
+                openSettings();
+                return;
+            }
+
+            storyBox.style.display = 'block';
+            storyBox.textContent = 'AI 正在想故事...';
+
+            const cacheKey = `story_${char}`;
+            if(localStorage.getItem(cacheKey)) {
+                storyBox.textContent = localStorage.getItem(cacheKey);
+                return;
+            }
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `請用台灣繁體中文，針對「${char}」這個字，造一個給國小高年級學生看的創意句子或短文（50字以內），可以用比較優美的詞彙。` }] }]
+                    })
+                });
+                const data = await response.json();
+                const text = data.candidates[0].content.parts[0].text;
+                storyBox.textContent = text;
+                localStorage.setItem(cacheKey, text);
+            } catch (e) {
+                storyBox.textContent = '連線失敗，請檢查 API Key';
+            }
+        }
+    </script>
+</body>
+</html>
