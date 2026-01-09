@@ -171,7 +171,9 @@
             margin-top: 20px; padding: 15px;
             background: #FFF8E1; border-radius: 12px; border: 2px solid #FFE082;
             text-align: left; display: none; color: #5D4037;
-            font-size: 16px; line-height: 1.6; font-family: "KaiTi", "BiauKai", "標楷體", serif;
+            font-size: 16px; line-height: 1.6; 
+            /* 修改：改為圓潤字體組合 (英文圓體 + 中文黑體/圓體) */
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', 'Microsoft JhengHei', '微軟正黑體', sans-serif;
         }
 
         /* Modal */
@@ -517,10 +519,10 @@
             // 由於 TTS API 限制較多，這裡使用瀏覽器語音作為穩定備案
             try {
                 // 如果您確實有開通 TTS，請取消下方註解並使用 gemini-1.5-flash
-                /*
+                
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 // ... TTS 呼叫邏輯 ...
-                */
+                
                 throw new Error("使用瀏覽器發音");
             } catch (e) {
                 console.log("轉為瀏覽器發音");
