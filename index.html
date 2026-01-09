@@ -8,7 +8,6 @@
     <meta name="theme-color" content="#4A90E2">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1046/1046269.png">
 
-    <!-- 1. 引入 Hanzi Writer (筆順) -->
     <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
@@ -43,28 +42,24 @@
             position: relative;
         }
 
-        /* 設定按鈕 (右上角) */
         .settings-btn {
             position: absolute; top: 20px; right: 20px;
             background: none; border: none; cursor: pointer; color: #999; transition: color 0.3s;
         }
         .settings-btn:hover { color: var(--primary-color); }
-        .settings-btn svg { width: 24px; height: 24px; fill: currentColor; }
 
         .app-container {
             background: var(--surface-color);
-            padding: 20px; /* 手機版邊距縮小，爭取空間 */
+            padding: 20px;
             border-radius: 24px;
             box-shadow: 0 8px 20px rgba(74, 144, 226, 0.15);
             text-align: center;
             border: 2px solid #E5E7EB;
-            width: 95%; /* 手機版佔滿 95% 寬度 */
-            max-width: 400px; /* 手機版預設最大寬度 */
+            width: 95%;
+            max-width: 400px;
             position: relative;
-            /* 使用 Grid 佈局以便在電腦版重新排列 */
             display: grid;
             gap: 15px;
-            /* 預設手機版：單欄由上而下 */
             grid-template-columns: 1fr;
             grid-template-areas: 
                 "title"
@@ -75,7 +70,6 @@
                 "story";
         }
         
-        /* 指定各元件的 Grid 區域名稱 */
         h1 { grid-area: title; margin-bottom: 10px; }
         .input-group { grid-area: input; margin-bottom: 10px; }
         .practice-wrapper { grid-area: canvas; margin-bottom: 0; }
@@ -83,7 +77,30 @@
         .controls { grid-area: controls; }
         #story-box { grid-area: story; }
 
-        /* 輸入區塊 */
+        /* RWD: 電腦版雙欄佈局 */
+        @media (min-width: 768px) {
+            body { padding: 40px; }
+            .app-container {
+                max-width: 900px;
+                padding: 40px;
+                column-gap: 40px;
+                row-gap: 20px;
+                text-align: left;
+                grid-template-columns: 300px 1fr;
+                grid-template-areas: 
+                    "title    title"
+                    "input    controls"
+                    "canvas   story"
+                    "status   story";
+                align-items: start;
+            }
+            h1 { text-align: center; font-size: 2rem; }
+            .input-group { justify-content: flex-start; margin-bottom: 0; }
+            .practice-wrapper { justify-content: center; }
+            .controls { grid-template-columns: 1fr 1fr; align-content: start; }
+            #story-box { margin-top: 0; height: 100%; min-height: 200px; }
+        }
+
         .input-group {
             display: flex; justify-content: center; align-items: center;
             gap: 10px; margin-bottom: 25px;
@@ -106,15 +123,10 @@
         }
         .btn-mini:active { transform: scale(0.95); }
         .btn-mini svg { width: 24px; height: 24px; fill: white; }
-
         .btn-random { background: var(--accent-color); }
 
-        /* === 練習區佈局 === */
-        .practice-wrapper {
-            display: flex; justify-content: center; margin-bottom: 25px;
-        }
+        .practice-wrapper { display: flex; justify-content: center; margin-bottom: 25px; }
 
-        /* === 筆順格 === */
         #hanzi-box {
             position: relative;
             width: 260px; height: 260px; min-width: 260px; min-height: 260px;
@@ -123,7 +135,6 @@
         }
         #hanzi-box svg { position: relative; z-index: 10; }
 
-        /* 內部：灰色十字虛線 */
         #hanzi-box::before {
             content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 1px;
             border-top: 2px dashed var(--grid-line-color); z-index: 0; pointer-events: none;
@@ -133,9 +144,7 @@
             border-left: 2px dashed var(--grid-line-color); z-index: 0; pointer-events: none;
         }
 
-        .controls {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-        }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
         .btn {
             background: white; border: 2px solid var(--primary-color); color: var(--primary-color);
@@ -153,17 +162,8 @@
         .btn-story { border-color: #FFB347; color: #E67E22; }
         .btn-story:hover { background: #FFB347; color: white; }
 
-        /* 發音中狀態 */
-        .speaking {
-            background-color: #9B59B6 !important;
-            color: white !important;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
+        .speaking { background-color: #9B59B6 !important; color: white !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
         #story-box {
             margin-top: 20px; padding: 15px;
@@ -190,17 +190,13 @@
             border-radius: 8px; box-sizing: border-box; font-family: monospace;
         }
         .modal-btns { text-align: right; margin-top: 15px; }
-        .modal-btn {
-            padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
-            font-weight: bold; margin-left: 10px;
-        }
+        .modal-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; margin-left: 10px; }
         .btn-cancel { background: #eee; color: #555; }
         .btn-save { background: var(--primary-color); color: white; }
     </style>
 </head>
 <body>
 
-    <!-- 設定按鈕 -->
     <div style="position: absolute; top: 20px; right: 20px; z-index: 100;">
         <button class="settings-btn" style="position: static;" onclick="resetKey()" title="重設狀態/清除快取">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -209,18 +205,15 @@
             </svg>
         </button>
     </div>
-
     
     <div class="app-container">
         <h1>快樂學寫字</h1>
         
         <div class="input-group">
             <input type="text" id="char-input" value="學" maxlength="1">
-            
             <button class="btn-mini" onclick="loadChar()" title="載入輸入的字">
                 <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
             </button>
-            
             <button class="btn-mini btn-random" onclick="randomChar()" title="隨機生字挑戰">
                 <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM6 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0-12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm0-12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg>
             </button>
@@ -253,7 +246,8 @@
 
         <div id="story-box"></div>
     </div>
-<div id="password-modal" class="modal-overlay" style="display: none;">
+
+    <div id="password-modal" class="modal-overlay" style="display: none;">
         <div class="modal">
             <h2>🔐 安全驗證</h2>
             <p>請輸入您的密碼以解鎖 AI 功能：</p>
@@ -264,10 +258,11 @@
             </div>
         </div>
     </div>
+
     <script>
         let writer;
         
-        // --- 高年級挑戰字庫 (約 1000 字) ---
+        // --- 高年級挑戰字庫 ---
         const commonChars = [
             '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '萬', '億', '兆',
             '人', '口', '手', '足', '頭', '目', '耳', '鼻', '舌', '身', '意', '心', '血', '骨', '肉',
@@ -312,56 +307,37 @@
 
         window.onload = function() {
             loadChar();
-            
-            // 檢查是否已有 Key
-            if (!localStorage.getItem('GEMINI_API_KEY')) {
-                // openSettings(); 
-            }
-
             document.getElementById('char-input').addEventListener('keypress', function (e) {
                 if (e.key === 'Enter') loadChar();
             });
         };
 
-        // --- 金鑰管理 (即時解密版) ---
-        
-        // 1. 您的加密字串 (請填入您加密後的那一長串亂碼)
+        // --- 金鑰管理 ---
+        // 您的加密字串 (請確認前後沒有空白)
         const EMBEDDED_KEY = "U2FsdGVkX18qoRfTfNno0s106nfFxUOLxjbqFXoDV4mD/evz6WLL6TJetNYnquKnx/oZ3N0nx4M2ffaaay2SGQ=="; 
         
-        // 用來暫存解密後的金鑰 (網頁重整後會消失，保證安全)
         let sessionApiKey = null;
 
-        // 檢查是否有可用金鑰，若無則跳出視窗
         function getApiKey() {
             if (sessionApiKey) return sessionApiKey;
-            
-            // 如果還沒解鎖，開啟密碼視窗
             document.getElementById('password-modal').style.display = 'flex';
             document.getElementById('app-password').focus();
             return null;
         }
 
-        // 驗證密碼並嘗試解密
         function verifyPassword() {
             const password = document.getElementById('app-password').value;
-            const status = document.getElementById('status');
             
-            if (!password) {
-                alert("請輸入密碼");
-                return;
-            }
+            if (!password) { alert("請輸入密碼"); return; }
 
             try {
-                // 嘗試使用輸入的密碼解密
                 const bytes = CryptoJS.AES.decrypt(EMBEDDED_KEY, password);
                 const originalText = bytes.toString(CryptoJS.enc.Utf8);
 
-                if (originalText.startsWith("AI")) { // 簡單檢查：Google API Key 通常以 AI 開頭
+                if (originalText.startsWith("AI")) {
                     sessionApiKey = originalText;
                     alert("✅ 解鎖成功！現在可以使用 AI 功能了。");
                     closePasswordModal();
-                    
-                    // 清空輸入框避免殘留
                     document.getElementById('app-password').value = ''; 
                 } else {
                     throw new Error("密碼錯誤");
@@ -376,12 +352,10 @@
             document.getElementById('password-modal').style.display = 'none';
         }
 
-        // 讓使用者按 Enter 也能送出
         function handleEnter(e) {
             if (e.key === 'Enter') verifyPassword();
         }
 
-        // 重設/鎖定功能 (原本的 resetKey)
         function resetKey() {
             if(sessionApiKey) {
                 if(confirm('確定要鎖定並清除目前的連線嗎？')) {
@@ -389,15 +363,12 @@
                     alert('已鎖定，下次使用需重新輸入密碼。');
                 }
             } else {
-                // 如果本來就沒解鎖，執行清除快取
                 if(confirm('確定要清除所有暫存資料 (如故事快取) 並重新整理嗎？')) {
                     localStorage.clear(); 
                     location.reload();
                 }
             }
         }
-        
-        // 移除舊的 openSettings, saveApiKey 等函式，因為不再需要視窗操作
 
         // --- 核心功能 ---
         function loadChar() {
@@ -413,7 +384,6 @@
             status.textContent = '載入中...';
             status.style.color = '#888';
 
-            // 顯示筆順
             try {
                 writer = HanziWriter.create('hanzi-box', char, {
                     width: 260,
@@ -432,12 +402,9 @@
             }
         }
 
-        // 新增功能：隨機選字
         function randomChar() {
             const randomIndex = Math.floor(Math.random() * commonChars.length);
             const randomChar = commonChars[randomIndex];
-            
-            // 更新輸入框並載入
             document.getElementById('char-input').value = randomChar;
             loadChar();
         }
@@ -463,8 +430,9 @@
                         ], { duration: 300 });
                     },
                     onCorrectStroke: () => {
-                        document.getElementById('status').textContent = '很棒！';
-                        document.getElementById('status').style.color = '#4A90E2';
+                        const s = document.getElementById('status');
+                        s.textContent = '很棒！';
+                        s.style.color = '#4A90E2';
                     },
                     onComplete: () => {
                         const s = document.getElementById('status');
@@ -475,35 +443,29 @@
             }
         }
 
-        // --- 修正後的 speak 函式 ---
+        // --- AI 發音與故事功能 ---
         async function speak() {
             const char = document.getElementById('char-input').value;
             const btn = document.getElementById('btn-speak');
             const status = document.getElementById('status');
             
-            // 1. 取得金鑰 (如果回傳 null，代表正在等密碼，直接結束不報錯)
+            // 1. 取得金鑰 (若無則靜默等待)
             let apiKey = getApiKey();
             if (!apiKey) return; 
-
-            // 安全防護：去除可能不小心複製到的空白
             apiKey = apiKey.trim();
 
-            // 2. 嘗試使用 Gemini TTS
             btn.classList.add('speaking');
             status.textContent = "AI 發音中...";
+            
+            // 由於 TTS API 限制較多，這裡使用瀏覽器語音作為穩定備案
             try {
-                // 注意：這裡我將模型名稱改回標準的預覽版，確保不會因為模型名稱錯誤導致 404
-                // 或是您可以暫時用 gemini-1.5-flash 來生成文字描述，但若要 TTS 建議先確認模型
-                // 目前 Google TTS API 尚未全面開放，若此處失敗會自動轉為瀏覽器發音
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-                
-                // ... (原本的 TTS 邏輯如果太複雜，我們先確保基本的發音)
-                // 為了確保穩定，我們先使用瀏覽器發音作為主要功能，若您確定有 TTS 權限再開啟上方邏輯
-                // 這裡示範「降級備援」邏輯：
-                throw new Error("TTS 暫時略過"); 
-
+                // 如果您確實有開通 TTS，請取消下方註解並使用 gemini-1.5-flash
+                /*
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                // ... TTS 呼叫邏輯 ...
+                */
+                throw new Error("使用瀏覽器發音");
             } catch (e) {
-                // 失敗時，自動轉為瀏覽器發音 (這最穩定)
                 console.log("轉為瀏覽器發音");
                 status.textContent = "瀏覽器發音...";
                 window.speechSynthesis.cancel();
@@ -512,19 +474,20 @@
                 u.rate = 0.3; 
                 window.speechSynthesis.speak(u);
             }
-            btn.classList.remove('speaking');
+            
+            setTimeout(() => {
+                btn.classList.remove('speaking');
+                status.textContent = "準備就緒";
+            }, 1000);
         }
 
-        // --- 修正後的 getStory 函式 ---
         async function getStory() {
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
             
-            // 1. 取得金鑰 (關鍵修正：如果沒金鑰，安靜離開，不要 alert)
+            // 1. 取得金鑰 (若無則靜默等待)
             let apiKey = getApiKey();
-            if (!apiKey) return; // 這裡改為直接 return，密碼視窗會由 getApiKey 自動開啟
-
-            // 安全防護：去除空白
+            if (!apiKey) return; 
             apiKey = apiKey.trim();
 
             storyBox.style.display = 'block';
@@ -537,21 +500,18 @@
             }
 
             try {
-                // 確認模型名稱正確
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                // 修正：使用正確的模型 gemini-1.5-flash
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: `請用台灣繁體中文，針對「${char}」這個字，造一個給國小高年級學生看的創意句子或短文（50字以內）。` }] }]
+                        contents: [{ parts: [{ text: `請用台灣繁體中文，針對「${char}」這個字，造一個給國小高年級學生看的創意句子或短文（50字以內），可以用比較優美的詞彙。` }] }]
                     })
                 });
                 
-                // 檢查是否 404 或其他錯誤
                 if (!response.ok) {
-                    const errData = await response.json();
-                    console.error("API Error Detail:", errData); // 這會在 Console 顯示詳細錯誤原因
-                    throw new Error(`API 回傳錯誤: ${response.status}`);
+                    throw new Error(`API 錯誤: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -565,122 +525,7 @@
                 }
                 
             } catch (e) {
-                storyBox.textContent = '連線失敗：' + e.message;
-                // 如果是 404，這裡會顯示出來
-            }
-        }
-
-        // 輔助函式：播放 Base64 PCM 音訊
-        async function playPcmData(base64Data) {
-            try {
-                // 1. 解碼 Base64
-                const binaryString = window.atob(base64Data);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                
-                // 2. 加上 WAV Header
-                const wavBytes = createWavHeader(bytes);
-                
-                // 3. 播放
-                const blob = new Blob([wavBytes], { type: 'audio/wav' });
-                const audioUrl = URL.createObjectURL(blob);
-                const audio = new Audio(audioUrl);
-                await audio.play();
-            } catch (e) {
-                console.error("Audio playback error", e);
-            }
-        }
-
-        // 輔助函式：建立 WAV Header (24kHz, 16bit, Mono)
-        function createWavHeader(pcmData) {
-            const numChannels = 1;
-            const sampleRate = 24000;
-            const bitsPerSample = 16;
-            const blockAlign = numChannels * bitsPerSample / 8;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = pcmData.length;
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-
-            // RIFF chunk
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataSize, true);
-            writeString(view, 8, 'WAVE');
-            // fmt chunk
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-            view.setUint16(20, 1, true);  // AudioFormat (1 for PCM)
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-            // data chunk
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-
-            // Write PCM data
-            const pcmView = new Uint8Array(buffer, 44);
-            pcmView.set(pcmData);
-
-            return buffer;
-        }
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        }
-
-        async function getStory() {
-            const char = document.getElementById('char-input').value;
-            const storyBox = document.getElementById('story-box');
-            
-           // 取得金鑰
-            const apiKey = getApiKey();
-            
-            // --- 修改後：若無金鑰 (代表視窗已開啟)，直接安靜結束，等待使用者輸入 ---
-            if (!apiKey) return; 
-            // -------------------------------------------------------------
-
-            storyBox.style.display = 'block';
-            storyBox.textContent = 'AI 正在想故事...';
-
-            // 檢查快取 (LocalStorage) 是否已有這個字的故事
-            const cacheKey = `story_${char}`;
-            if(localStorage.getItem(cacheKey)) {
-                storyBox.textContent = localStorage.getItem(cacheKey);
-                return; // 如果有存過，直接顯示並結束，不花費 API 配額
-            }
-
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        // 提示詞優化：限制字數以免故事太長
-                        contents: [{ parts: [{ text: `請用台灣繁體中文，針對「${char}」這個字，造一個給國小高年級學生看的創意句子或短文（50字以內），可以用比較優美的詞彙。` }] }]
-                    })
-                });
-                
-                const data = await response.json();
-                
-                // 增加錯誤檢查：確保回傳資料結構正確
-                if (data.candidates && data.candidates.length > 0) {
-                    const text = data.candidates[0].content.parts[0].text;
-                    storyBox.textContent = text;
-                    localStorage.setItem(cacheKey, text); // 成功後存入快取
-                } else {
-                    storyBox.textContent = 'AI 暫時無法回應，請稍後再試。';
-                    console.error('API Error:', data);
-                }
-                
-            } catch (e) {
-                storyBox.textContent = '連線失敗，請檢查網路狀態。';
+                storyBox.textContent = '連線失敗，請檢查金鑰或網路。';
                 console.error(e);
             }
         }
@@ -688,6 +533,7 @@
         // --- PWA Service Worker 註冊 ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // 修正：確保 sw.js 位於根目錄或相對路徑正確
                 navigator.serviceWorker.register('./sw.js')
                     .then(reg => console.log('PWA Service Worker 註冊成功:', reg.scope))
                     .catch(err => console.log('PWA 註冊失敗:', err));
