@@ -542,20 +542,27 @@
         async function getStory() {
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
+            
+            // 取得金鑰
             const apiKey = getApiKey();
             
+            // --- 修正點開始 ---
+            // 舊版是呼叫 openSettings()，但該函式已被移除。
+            // 現在改為直接檢查，若無金鑰代表解密失敗或變數設定錯誤。
             if (!apiKey) {
-                openSettings();
+                alert("系統錯誤：無法讀取金鑰，請檢查程式碼中的 EMBEDDED_KEY 設定。");
                 return;
             }
+            // --- 修正點結束 ---
 
             storyBox.style.display = 'block';
             storyBox.textContent = 'AI 正在想故事...';
 
+            // 檢查快取 (LocalStorage) 是否已有這個字的故事
             const cacheKey = `story_${char}`;
             if(localStorage.getItem(cacheKey)) {
                 storyBox.textContent = localStorage.getItem(cacheKey);
-                return;
+                return; // 如果有存過，直接顯示並結束，不花費 API 配額
             }
 
             try {
@@ -564,15 +571,26 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
+                        // 提示詞優化：限制字數以免故事太長
                         contents: [{ parts: [{ text: `請用台灣繁體中文，針對「${char}」這個字，造一個給國小高年級學生看的創意句子或短文（50字以內），可以用比較優美的詞彙。` }] }]
                     })
                 });
+                
                 const data = await response.json();
-                const text = data.candidates[0].content.parts[0].text;
-                storyBox.textContent = text;
-                localStorage.setItem(cacheKey, text);
+                
+                // 增加錯誤檢查：確保回傳資料結構正確
+                if (data.candidates && data.candidates.length > 0) {
+                    const text = data.candidates[0].content.parts[0].text;
+                    storyBox.textContent = text;
+                    localStorage.setItem(cacheKey, text); // 成功後存入快取
+                } else {
+                    storyBox.textContent = 'AI 暫時無法回應，請稍後再試。';
+                    console.error('API Error:', data);
+                }
+                
             } catch (e) {
-                storyBox.textContent = '連線失敗，請檢查 API Key';
+                storyBox.textContent = '連線失敗，請檢查網路狀態。';
+                console.error(e);
             }
         }
 
