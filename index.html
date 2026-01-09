@@ -170,21 +170,44 @@
         #story-box {
             margin-top: 20px; padding: 15px;
             background: #FFF8E1; border-radius: 12px; border: 2px solid #FFE082;
-            color: #5D4037;
-            font-size: 20px; /* 直書字體可以稍微大一點 */
-            line-height: 2;  /* 行距拉開，避免注音擠在一起 */
-            
-            /* --- 關鍵修改：直書設定 --- */
-            writing-mode: vertical-rl; /* 垂直書寫，從右到左 */
-            text-orientation: upright; /* 讓國字正向顯示 */
-            
-            /* 因為變成橫向捲動，需要設定高度與捲軸 */
-            height: 300px; /* 給一個固定高度讓文字流動 */
-            overflow-x: auto; /* 內容太多時出現橫向捲軸 */
-            overflow-y: hidden;
-            
+            text-align: left; display: none; color: #5D4037;
+            font-size: 18px; 
+            line-height: 1.8; /* 行高拉大，避免直式注音卡到下一行 */
             font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
-            display: none; /* 預設隱藏 */
+            /* 恢復橫式書寫，避免變成橫向捲動 */
+            writing-mode: horizontal-tb; 
+            overflow-y: auto;
+            max-height: 300px; /* 超過高度才捲動 */
+        }
+
+        /* 單個字的容器：國字在左，注音在右 */
+        .zi-group {
+            display: inline-flex; /* 讓它們排成一列 */
+            align-items: center;  /* 垂直置中 */
+            margin-right: 4px;    /* 字與字之間的間距 */
+            vertical-align: middle;
+        }
+
+        /* 國字本體 */
+        .zi-char {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        /* 右側注音容器：垂直排列 */
+        .zi-zhuyin {
+            display: flex;
+            flex-direction: column; /* 讓ㄅㄆㄇ垂直堆疊 */
+            justify-content: center;
+            align-items: center;
+            margin-left: 2px;
+            transform: scale(0.7); /* 縮小注音 */
+            transform-origin: left center;
+            width: 15px; /* 固定寬度 */
+            line-height: 1.1;
+            color: #777;
+            font-family: "BiauKai", "標楷體", serif; /* 注音用楷體比較好看 */
+            font-weight: normal;
         }
 
         /* 設定注音顯示的位置 */
@@ -565,7 +588,6 @@
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
             
-            // 1. 取得金鑰
             let apiKey = getApiKey();
             if (!apiKey) return; 
             apiKey = apiKey.trim();
@@ -573,24 +595,21 @@
             storyBox.style.display = 'block';
             storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在思考造詞造句...</div>';
 
-            const cacheKey = `vocab_${char}`; // 修改快取 Key 名稱以區隔舊資料
+            const cacheKey = `vocab_v2_${char}`; // 換個 Key 避免讀到舊格式
             
-            // 檢查快取
             if(localStorage.getItem(cacheKey)) {
                 renderContent(localStorage.getItem(cacheKey));
                 return;
             }
 
             try {
-                // 使用較穩定的 gemini-1.5-flash 模型 (原 gemini-3 可能為無效名稱)
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        // 修改：強制要求 AI 在詞句後方加上注音，方便孩子閱讀
-// 修改 Prompt：要求 AI 輸出標準的 HTML Ruby 格式
-parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n重點要求：\n- 請使用 HTML <ruby> 標籤標示注音，讓注音顯示在字旁邊。例如：<ruby>學<rt>ㄒㄩㄝˊ</rt></ruby>\n- 請直接列出內容，不要有標題。格式範例：\n造詞：<ruby>開<rt>ㄎㄞ</rt></ruby><ruby>心<rt>ㄒㄧㄣ</rt></ruby>\n造句：<ruby>我<rt>ㄨㄛˇ</rt></ruby><ruby>很<rt>ㄏㄣˇ</rt></ruby><ruby>快<rt>ㄎㄨㄞˋ</rt></ruby><ruby>樂<rt>ㄌㄜˋ</rt></ruby>。` }]
+                        // 修改 Prompt：請 AI 用簡單的括號格式回傳，方便我們切割處理
+                        parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n重點要求：\n- 請在每個國字後面用括號標示注音。格式範例：開(ㄎㄞ)心(ㄒㄧㄣ)、學(ㄒㄩㄝˊ)校(ㄒㄩㄝˊ)\n- 請直接列出內容，不要有標題。` }]
                     })
                 });
                 
@@ -600,7 +619,7 @@ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個
                 
                 if (data.candidates && data.candidates.length > 0) {
                     const text = data.candidates[0].content.parts[0].text;
-                    localStorage.setItem(cacheKey, text); // 存入快取
+                    localStorage.setItem(cacheKey, text);
                     renderContent(text);
                 } else {
                     storyBox.textContent = 'AI 暫時無法回應，請稍後再試。';
@@ -611,15 +630,29 @@ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個
                 console.error(e);
             }
 
-            // 內部輔助函式：負責渲染文字和小喇叭
+            // 核心功能：將 "字(注音)" 轉換為 "直式注音 HTML"
             function renderContent(content) {
-                // 將換行符號轉換為 HTML 換行，並移除可能的 Markdown 符號
-                const cleanText = content.replace(/\*/g, '').trim();
-                const htmlText = cleanText.replace(/\n/g, '<br>');
+                let cleanText = content.replace(/\*/g, '').trim();
                 
+                // 1. 處理換行，加上 <br>
+                let html = cleanText.replace(/\n/g, '<br>');
+
+                // 2. [關鍵] 正規表達式：抓取 "中文字(注音)" 的模式
+                // 把 "學(ㄒㄩㄝˊ)" 轉換成 <div class="zi-group">...</div>
+                html = html.replace(/([\u4e00-\u9fa5])\s*[（(](.*?)[）)]/g, (match, word, zhuyin) => {
+                    // 將注音字串拆解成一個個字元 (例如 "ㄒㄩㄝˊ" -> ㄒ, ㄩ, ㄝ, ˊ)
+                    const zhuyinChars = zhuyin.split('').map(z => `<div>${z}</div>`).join('');
+                    
+                    return `<span class="zi-group">
+                                <span class="zi-char">${word}</span>
+                                <span class="zi-zhuyin">${zhuyinChars}</span>
+                            </span>`;
+                });
+
+                // 渲染到畫面上
                 storyBox.innerHTML = `
-                    <div style="display: flex; align-items: flex-start; gap: 15px;">
-                        <div style="flex: 1; line-height: 1.8;">${htmlText}</div>
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <div style="flex: 1;">${html}</div>
                         <button onclick="speakText(this.getAttribute('data-text'))" 
                                 data-text="${cleanText}"
                                 style="background: var(--accent-color); border: none; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
@@ -638,6 +671,7 @@ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個
         // 新增：朗讀造詞造句的功能 (分段朗讀 + 優化停頓)
         // 新增：朗讀造詞造句的功能 (分段朗讀 + 聰明過濾注音)
         // 新增：朗讀功能 (支援直書 Ruby 格式過濾)
+        // 新增：朗讀功能 (過濾括號注音，只唸國字)
         function speakText(text) {
             window.speechSynthesis.cancel();
             
@@ -646,20 +680,14 @@ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個
                               voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Microsoft')) || 
                               voices.find(v => v.lang.includes('zh-TW'));
 
-            // 1. 因為 HTML 標籤會影響分段，我們先把 <br> 換成換行符號
-            let rawText = text.replace(/<br\s*\/?>/gi, '\n');
-
-            const lines = rawText.split('\n').filter(line => line.trim() !== '');
+            // 換行符號切割
+            const lines = text.split('\n').filter(line => line.trim() !== '');
 
             lines.forEach((line) => {
-                // 2. 清理 HTML 標籤，只保留國字來發音
-                // 先移除 <rt>...</rt> 裡面的注音內容 (這樣就不會唸出ㄅㄆㄇ)
-                let textForSpeech = line.replace(/<rt>.*?<\/rt>/g, '');
+                // 1. 把 "學(ㄒㄩㄝˊ)" 變成 "學" (使用正規表達式移除括號內容)
+                let textForSpeech = line.replace(/[（(].*?[)）]/g, '');
                 
-                // 再移除剩下的 <ruby> 等標籤
-                textForSpeech = textForSpeech.replace(/<[^>]+>/g, '');
-                
-                // 處理標點停頓
+                // 2. 處理標點停頓
                 textForSpeech = textForSpeech.replace(/：/g, '，');
 
                 const u = new SpeechSynthesisUtterance(textForSpeech);
