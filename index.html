@@ -334,14 +334,28 @@
             });
         };
 
-        // --- 金鑰管理 ---
+        // --- 金鑰管理 (具備自動記憶功能) ---
+        
         // 您的加密字串 (請確認前後沒有空白)
         const EMBEDDED_KEY = "U2FsdGVkX18qoRfTfNno0s106nfFxUOLxjbqFXoDV4mD/evz6WLL6TJetNYnquKnx/oZ3N0nx4M2ffaaay2SGQ=="; 
         
+        // 定義一個用來在瀏覽器中記憶金鑰的名稱
+        const STORAGE_NAME = 'MY_DECRYPTED_SESSION_KEY';
+
         let sessionApiKey = null;
 
         function getApiKey() {
+            // 1. 先檢查記憶體變數
             if (sessionApiKey) return sessionApiKey;
+
+            // 2. [新功能] 檢查瀏覽器暫存 (localStorage)
+            const cachedKey = localStorage.getItem(STORAGE_NAME);
+            if (cachedKey) {
+                sessionApiKey = cachedKey; // 載入暫存的金鑰
+                return sessionApiKey;      // 直接回傳，不跳出視窗
+            }
+
+            // 3. 如果都沒有，才跳出密碼視窗
             document.getElementById('password-modal').style.display = 'flex';
             document.getElementById('app-password').focus();
             return null;
@@ -358,7 +372,11 @@
 
                 if (originalText.startsWith("AI")) {
                     sessionApiKey = originalText;
-                    alert("✅ 解鎖成功！現在可以使用 AI 功能了。");
+                    
+                    // [新功能] 解鎖成功後，存入 localStorage
+                    localStorage.setItem(STORAGE_NAME, originalText);
+
+                    alert("✅ 解鎖成功！系統已記住您的金鑰，下次無需再輸入。");
                     closePasswordModal();
                     document.getElementById('app-password').value = ''; 
                 } else {
@@ -378,19 +396,34 @@
             if (e.key === 'Enter') verifyPassword();
         }
 
+        // [新功能] 重設按鈕：清除記憶並鎖定
         function resetKey() {
-            if(sessionApiKey) {
-                if(confirm('確定要鎖定並清除目前的連線嗎？')) {
-                    sessionApiKey = null;
-                    alert('已鎖定，下次使用需重新輸入密碼。');
-                }
-            } else {
-                if(confirm('確定要清除所有暫存資料 (如故事快取) 並重新整理嗎？')) {
-                    localStorage.clear(); 
-                    location.reload();
-                }
+            if(confirm('確定要清除記憶的金鑰並重新鎖定嗎？')) {
+                // 清除金鑰暫存
+                localStorage.removeItem(STORAGE_NAME);
+                sessionApiKey = null;
+                
+                // 清除故事快取 (可選，這裡保留以防萬一)
+                // localStorage.clear(); 
+                
+                alert('已鎖定！下次使用需重新輸入密碼。');
+                location.reload(); // 重新整理頁面
             }
         }
+
+        // --- 核心功能 (筆順相關) ---
+        // (這部分不需要更動，保持原樣即可，但我列出 getStory 以便修復模型名稱)
+        
+        // ... (中間省略 loadChar, randomChar, animateStroke, startQuiz 等函式，保持不變) ...
+
+        window.onload = function() {
+            loadChar();
+            document.getElementById('char-input').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') loadChar();
+            });
+            // 網頁載入時，嘗試靜默取得金鑰(如果以前存過，這裡就會自動讀取)
+            getApiKey(); 
+        };
 
         // --- 核心功能 ---
         function loadChar() {
