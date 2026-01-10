@@ -79,8 +79,8 @@
         .controls { grid-area: controls; }
         #story-box { grid-area: story; }
 
-        /* RWD: 電腦版雙欄佈局 */
-        @media (min-width: 768px) {
+        /* 修改：將電腦版切換點改為 1024px，讓 iPad 直向時保持單欄顯示 */
+        @media (min-width: 1024px) {
             body { padding: 40px; }
             .app-container {
                 max-width: 900px;
