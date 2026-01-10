@@ -147,17 +147,19 @@
         }
 
         #zhuyin-box {
-            font-family: "BiauKai", "DFKai-SB", "標楷體", serif; /* 強制使用標楷體 */
-            font-size: 40px;          /* 注音大小 */
-            color: #555;              /* 注音顏色 */
-            font-weight: bold;
-            writing-mode: vertical-rl; /* 關鍵：設定為直寫 (從右到左) */
-            text-orientation: upright; /* 讓文字直立 */
-            letter-spacing: 0.2em;     /* 拉開注音符號間距 */
-            height: 260px;             /* 與國字框同高 */
+            font-family: "BiauKai", "DFKai-SB", "標楷體", serif;
+            font-size: 42px;            /* 字體稍微加大 */
+            color: #555;
+            font-weight: normal;        /* 標楷體不需加粗，Normal 較清爽 */
+            writing-mode: vertical-rl;  /* 直式書寫 */
+            text-orientation: upright;  /* 文字直立 */
+            letter-spacing: 0.1em;      /* 符號間距 */
+            height: 260px;
+            width: 60px;                /* 給予足夠寬度 */
             display: flex;
-            align-items: center;       /* 垂直置中 */
-            justify-content: center;
+            align-items: center;        /* 垂直置中 */
+            justify-content: center;    /* 水平置中 */
+            margin-left: 10px;          /* 增加一點左邊距 */
         }
 
         #hanzi-box::before {
@@ -455,6 +457,62 @@
             getApiKey(); 
         };
 
+        // --- 新增：使用 API 取得精準注音 ---
+        async function fetchZhuyin(char) {
+            const zhuyinBox = document.getElementById('zhuyin-box');
+            zhuyinBox.textContent = ''; // 清空舊內容
+            
+            // 1. 檢查快取 (雖然您說不需節省，但為了顯示速度，快取還是必要的)
+            const cacheKey = `zhuyin_api_${char}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                zhuyinBox.textContent = cached;
+                return;
+            }
+
+            // 2. 取得金鑰 (靜默取得，若無金鑰則不顯示注音，不強跳視窗干擾流程)
+            // 注意：這裡直接使用 localStorage，避免在輸入時一直跳出密碼框
+            let apiKey = localStorage.getItem(STORAGE_NAME);
+            if (!apiKey) return;
+
+            // 3. 呼叫 API
+            try {
+                // 顯示讀取中狀態 (用轉圈或點點)
+                zhuyinBox.textContent = '...';
+                
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `請給出中文字「${char}」的標準國語注音符號(ㄅㄆㄇ)。
+                                規則：
+                                1. 只回傳注音符號本身(包含聲調)，不要有任何解釋、拼音或多餘文字。
+                                2. 直式排列格式。
+                                3. 若有多音字，請給出最常用的國小教學讀音。
+                                範例輸入：學
+                                範例輸出：ㄒㄩㄝˊ`
+                            }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                if (data.candidates && data.candidates.length > 0) {
+                    // 清理回傳文字，移除空白與換行，確保格式整齊
+                    let result = data.candidates[0].content.parts[0].text.trim();
+                    result = result.replace(/\s/g, '').replace(/`/g, '');
+                    
+                    zhuyinBox.textContent = result;
+                    localStorage.setItem(cacheKey, result); // 寫入快取
+                }
+            } catch (e) {
+                console.error("注音 API 發生錯誤:", e);
+                zhuyinBox.textContent = ''; // 失敗時留白
+            }
+        }
         // --- 核心功能 ---
         function loadChar() {
             const char = document.getElementById('char-input').value.trim();
@@ -472,16 +530,8 @@
             status.textContent = '載入中...';
             status.style.color = '#888';
 
-            // 新增：產生直式注音 (使用 pinyin-pro)
-            try {
-                const { pinyin } = pinyinPro;
-                // 轉換為注音，toneType: 'symbol' 會保留標準聲調符號
-                const zhuyin = pinyin(char, { pattern: 'zhuyin', toneType: 'symbol' });
-                // 填入注音框 (若有多音字，預設取第一個)
-                document.getElementById('zhuyin-box').textContent = zhuyin.split(' ')[0];
-            } catch (e) {
-                console.error("注音轉換失敗", e);
-            }
+           // 執行 API 查詢注音
+            fetchZhuyin(char);
 
             try {
                 writer = HanziWriter.create('hanzi-box', char, {
