@@ -177,18 +177,18 @@
             transform: scale(0.95); /* 點擊縮小效果 */
         }
 
-        /* 右下角的循環小圖示 */
-        /* 右下角的循環小圖示 - 增強版 */
+        /* 請用這段取代原有的 #zhuyin-box.multi-tone::after */
         #zhuyin-box.multi-tone::after {
             content: '⟳'; 
             position: absolute;
             bottom: 5px;
             right: 5px;
-            font-size: 20px;   /* 變大 */
-            color: #E67E22;    /* 改用亮橘色，比較顯眼 */
+            font-size: 24px;   /* 加大尺寸 */
+            color: #FFB347;    
             font-weight: bold;
-            opacity: 1;        /* 不透明 */
-            animation: pulse-icon 2s infinite; /* 加入呼吸動畫 */
+            text-shadow: 1px 1px 0px #fff; /* 增加白邊讓圖示更清楚 */
+            cursor: pointer;
+            animation: pulse-icon 2s infinite;
         }
 
         @keyframes pulse-icon {
@@ -578,8 +578,7 @@
                 <div class="z-tone">${sideTone}</div>
             `;
         }
-        // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 ---
-        // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 ---
+        // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 (優化版) ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
             
@@ -588,16 +587,15 @@
                 if (typeof pinyinPro !== 'undefined') {
                     const { pinyin } = pinyinPro;
                     
-                    // 1. 取得所有讀音
+                    // 1. 取得所有讀音 (開啟 multiple)
                     const result = pinyin(char, { 
                         pattern: 'zhuyin', 
                         toneType: 'symbol',
-                        multiple: true, // 啟用破音字
+                        multiple: true, 
                         type: 'array'
                     });
 
-                    // 2. 嚴格過濾：過濾掉任何包含英文字母(a-z)的結果
-                    // 這是防止「跳出拼音」的關鍵
+                    // 2. 嚴格過濾：過濾掉任何包含英文字母的結果
                     const cleanCandidates = [...new Set(result)].filter(item => {
                         return !/[a-zA-Z]/.test(item);
                     });
@@ -610,7 +608,6 @@
                         renderZhuyinUI(zhuyinCandidates[0]);
                         updateMultiToneIndicator(); 
                     } else {
-                        // 如果本機沒查到，保持轉圈圈動畫等待 API
                         console.log("本機無資料，等待 API...");
                     }
                 }
@@ -619,31 +616,40 @@
             }
 
             // 【階段二：API 精準驗證 (背景執行)】
-            
-            // 修正重點：如果本地已經確認是破音字(有多個結果)，就不要讓 API 覆蓋畫面
-            // 這樣才能保留切換功能
+            // 如果本地已經確認是破音字(有多個結果)，為了節省 API 與運算，直接使用本地結果
             if (zhuyinCandidates.length > 1) {
                 return; 
             }
 
-            // 1. 檢查快取
+            // 1. 檢查快取 (Key 格式： zhuyin_api_字)
             const cacheKey = `zhuyin_api_${char}`;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached && !/[a-zA-Z]/.test(cached)) {
-                renderZhuyinUI(cached);
-                return;
+            const cachedRaw = localStorage.getItem(cacheKey);
+            
+            if (cachedRaw) {
+                // 解析快取中的多音字 (假設快取是用 / 分隔的字串)
+                const cachedArr = cachedRaw.split('/');
+                // 過濾非法字元
+                const validCached = cachedArr.filter(t => !/[a-zA-Z]/.test(t));
+                
+                if (validCached.length > 0) {
+                    zhuyinCandidates = validCached; // 更新全域候選字
+                    currentZhuyinIndex = 0;
+                    renderZhuyinUI(zhuyinCandidates[0]);
+                    updateMultiToneIndicator(); // 更新 UI 顯示循環圖示
+                    return;
+                }
             }
 
             // 2. 取得金鑰
             let apiKey = localStorage.getItem(STORAGE_NAME);
             if (!apiKey) {
-                // 如果沒金鑰且沒結果，清空轉圈圈
                 if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
                 return; 
             }
 
-            // 3. 呼叫 AI (已修正模型名稱)
+            // 3. 呼叫 AI
             try {
+                // 使用 gemini-1.5-flash 或 gemini-2.0-flash-exp 等較新模型
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
@@ -651,11 +657,11 @@
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: `請給出中文字「${char}」的標準國語注音符號(ㄅㄆㄇ)。
+                                text: `請給出中文字「${char}」的所有標準國語注音符號。
                                 規則：
-                                1. 只回傳注音符號本身(包含聲調)。
-                                2. 絕對不要回傳拼音或英文。
-                                3. 若有多音字，給出最常用的讀音即可。`
+                                1. 若有多個讀音(破音字)，請務必全部列出。
+                                2. 多個讀音之間請用斜線 "/" 分隔 (例如：ㄌㄜˋ/ㄩㄝˋ)。
+                                3. 只回傳注音符號與分隔線，不要有任何解釋、拼音或英文。`
                             }]
                         }]
                     })
@@ -667,16 +673,30 @@
 
                 if (data.candidates && data.candidates.length > 0) {
                     let apiResult = data.candidates[0].content.parts[0].text.trim();
+                    // 清理可能的多餘符號
                     apiResult = apiResult.replace(/\s/g, '').replace(/`/g, '');
                     
-                    if (!/[a-zA-Z]/.test(apiResult)) {
-                        localStorage.setItem(cacheKey, apiResult);
-                        renderZhuyinUI(apiResult);
+                    // 解析 API 回傳的 "讀音1/讀音2"
+                    let newCandidates = apiResult.split('/');
+
+                    // 過濾掉不含注音的無效項目
+                    newCandidates = newCandidates.filter(item => item && !/[a-zA-Z]/.test(item));
+
+                    if (newCandidates.length > 0) {
+                        // 存入快取 (存原始字串以節省空間)
+                        localStorage.setItem(cacheKey, newCandidates.join('/'));
+                        
+                        // 更新全域變數
+                        zhuyinCandidates = newCandidates;
+                        currentZhuyinIndex = 0;
+                        
+                        // 渲染
+                        renderZhuyinUI(zhuyinCandidates[0]);
+                        updateMultiToneIndicator(); // 確保出現循環圖示
                     }
                 }
             } catch (e) {
                 console.error("API 失敗:", e);
-                // 只有在本機也沒資料時，才清空轉圈圈，避免使用者看到空白
                 if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
             }
         }
