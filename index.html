@@ -809,30 +809,52 @@
             apiKey = apiKey.trim();
 
             btn.classList.add('speaking');
-            status.textContent = "AI 發音中...";
+            status.textContent = "發音中...";
             
             // 由於 TTS API 限制較多，這裡使用瀏覽器語音作為穩定備案
             try {
                 // 如果您確實有開通 TTS，請取消下方註解並使用 gemini-1.5-flash
-                
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                // const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 // ... TTS 呼叫邏輯 ...
                 
                 throw new Error("使用瀏覽器發音");
             } catch (e) {
                 console.log("轉為瀏覽器發音");
-                status.textContent = "瀏覽器發音...";
+                
+                // --- 修改重點開始：根據選中的破音字來決定朗讀內容 ---
+                let textToSpeak = char;
+                
+                // 檢查是否有選中的注音候選字
+                if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
+                    const currentZhuyin = zhuyinCandidates[currentZhuyinIndex];
+                    // 技巧：朗讀「國字 + 逗號 + 注音」，強迫使用者聽到正確的聲韻
+                    // 例如：選到「樂(ㄩㄝˋ)」時，會唸「樂，ㄩㄝˋ」
+                    textToSpeak = `${char}，${currentZhuyin}`;
+                }
+                // --- 修改重點結束 ---
+
                 window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(char);
+                const u = new SpeechSynthesisUtterance(textToSpeak);
                 u.lang = 'zh-TW';
-                u.rate = 0.3; 
+                u.rate = 0.6; //稍微放慢一點，讓孩子聽清楚注音
+                
+                // 嘗試套用最佳語音 (沿用您在 speakText 的邏輯)
+                const voices = window.speechSynthesis.getVoices();
+                const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
+                                  voices.find(v => v.name.includes('Microsoft') && v.lang.includes('zh-TW')) || 
+                                  voices.find(v => v.name.includes('Meijia')) || 
+                                  voices.find(v => v.name.includes('Siri'));
+                if (bestVoice) {
+                    u.voice = bestVoice;
+                }
+
                 window.speechSynthesis.speak(u);
             }
             
             setTimeout(() => {
                 btn.classList.remove('speaking');
                 status.textContent = "準備就緒";
-            }, 1000);
+            }, 1500); // 時間稍微拉長一點配合語音長度
         }
 
         async function getStory() {
