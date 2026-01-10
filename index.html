@@ -797,42 +797,54 @@
             }
         }
 
-        // --- AI 發音與故事功能 ---
-        async function speak() {
+        // --- AI 發音 ---
+async function speak() {
             const char = document.getElementById('char-input').value;
             const btn = document.getElementById('btn-speak');
             const status = document.getElementById('status');
             
-            // 1. 取得金鑰 (若無則靜默等待)
-            let apiKey = getApiKey();
-            if (!apiKey) return; 
-            apiKey = apiKey.trim();
+            // --- 修改重點：優先讀取當前選中的注音 ---
+            // 預設讀國字，但如果有注音資料，則改讀注音
+            let textToRead = char;
+            if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
+                textToRead = zhuyinCandidates[currentZhuyinIndex];
+            }
 
             btn.classList.add('speaking');
-            status.textContent = "AI 發音中...";
+            status.textContent = "發音中...";
             
-            // 由於 TTS API 限制較多，這裡使用瀏覽器語音作為穩定備案
-            try {
-                // 如果您確實有開通 TTS，請取消下方註解並使用 gemini-1.5-flash
-                
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-                // ... TTS 呼叫邏輯 ...
-                
-                throw new Error("使用瀏覽器發音");
-            } catch (e) {
-                console.log("轉為瀏覽器發音");
-                status.textContent = "瀏覽器發音...";
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(char);
-                u.lang = 'zh-TW';
-                u.rate = 0.3; 
-                window.speechSynthesis.speak(u);
-            }
+            // 停止目前的發音
+            window.speechSynthesis.cancel();
             
+            // 使用 setTimeout 確保 cancel 完成後再播放
             setTimeout(() => {
-                btn.classList.remove('speaking');
-                status.textContent = "準備就緒";
-            }, 1000);
+                const u = new SpeechSynthesisUtterance(textToRead);
+                u.lang = 'zh-TW';
+                u.rate = 0.65; // 注音符號建議唸慢一點，讓小朋友聽清楚聲調
+                
+                // 套用與 speakText 相同的優質語音選擇邏輯
+                const voices = window.speechSynthesis.getVoices();
+                const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
+                                  voices.find(v => v.name.includes('Meijia')) || 
+                                  voices.find(v => v.name.includes('Siri')); // 嘗試使用 Siri 聲音
+                                  
+                if (bestVoice) {
+                    u.voice = bestVoice;
+                }
+
+                u.onend = () => {
+                    btn.classList.remove('speaking');
+                    status.textContent = "準備就緒";
+                };
+                
+                u.onerror = (e) => {
+                    console.error("發音錯誤", e);
+                    btn.classList.remove('speaking');
+                    status.textContent = "準備就緒";
+                };
+
+                window.speechSynthesis.speak(u);
+            }, 50);
         }
 
         async function getStory() {
