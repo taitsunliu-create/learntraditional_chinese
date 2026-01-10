@@ -13,8 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
-    <script src="https://unpkg.com/pinyin-pro"></script>
-
+    
     <style>
         :root {
             --primary-color: #4A90E2; /* 藍色實線 */
@@ -203,6 +202,19 @@
             font-size: 0.8em;       /* 聲調稍微小一點點比較秀氣 */
             margin-top: 10px;       /* 微調位置，讓它看起來在字的中間偏右 */
             margin-right: -10px;    /* 稍微靠左修正間距 */
+        }
+
+        /* 讀取中的轉圈圈動畫 */
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+            width: 30px;
+            height: 30px;
+            color: #4A90E2;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         #hanzi-box::before {
@@ -559,56 +571,69 @@
         }
         // --- 優化版：具備錯誤處理的注音查詢 ---
         // --- 極速版：本機優先 + API 驗證 ---
+        // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
             
-            // 【階段一：極速顯示】
-            // 先用本機函式庫瞬間算出來，讓使用者不用等
-            // 【階段一：極速顯示 & 破音字偵測】
+            // 【階段一：本機極速顯示 (嚴格過濾拼音)】
             try {
                 if (typeof pinyinPro !== 'undefined') {
-                    // 1. 取得該字的所有讀音 (使用 multiple: true)
                     const { pinyin } = pinyinPro;
+                    
+                    // 1. 取得所有讀音
                     const result = pinyin(char, { 
                         pattern: 'zhuyin', 
                         toneType: 'symbol',
-                        multiple: true, // 關鍵：啟用多音字模式
-                        type: 'array'   // 讓它回傳陣列
+                        multiple: true, // 啟用破音字
+                        type: 'array'
                     });
 
-                    // 2. 去除重複 (有些讀音可能只是聲調標記不同，做個簡單過濾)
-                    // 使用 Set 來去重，並轉回陣列
-                    zhuyinCandidates = [...new Set(result)];
-                    currentZhuyinIndex = 0; // 重置索引
+                    // 2. 嚴格過濾：過濾掉任何包含英文字母(a-z)的結果，確保只有ㄅㄆㄇ
+                    // 同時過濾掉重複的讀音
+                    const cleanCandidates = [...new Set(result)].filter(item => {
+                        return !/[a-zA-Z]/.test(item); // 如果有英文就剔除
+                    });
 
-                    // 3. 渲染第一個讀音
+                    zhuyinCandidates = cleanCandidates;
+                    currentZhuyinIndex = 0;
+
+                    // 3. 渲染
                     if (zhuyinCandidates.length > 0) {
+                        // 確保第一個候選字也是純注音
                         renderZhuyinUI(zhuyinCandidates[0]);
-                        
-                        // 如果有多個讀音，顯示提示 (稍後在 CSS 處理)
                         updateMultiToneIndicator(); 
+                    } else {
+                        // 如果本機庫怪怪的，先留著轉圈圈等 API
+                        console.log("本機庫未回傳有效注音");
                     }
                 }
             } catch (localErr) {
-                console.log("本機多音字查詢失敗", localErr);
-                zhuyinBox.textContent = '...'; 
+                console.log("本機查詢錯誤", localErr);
+                // 這裡不清除 HTML，讓轉圈圈繼續轉，等待 API
             }
 
-            // 【階段二：API 精準驗證】
+            // 【階段二：API 精準驗證 (背景執行)】
             
-            // 1. 檢查快取 (如果 API 之前查過，就用 API 的結果覆蓋本機的)
+            // 1. 檢查快取
             const cacheKey = `zhuyin_api_${char}`;
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
-                renderZhuyinUI(cached); // 使用快取的最準確結果更新畫面
+                // 如果快取內容也是純注音，才渲染
+                if (!/[a-zA-Z]/.test(cached)) {
+                    renderZhuyinUI(cached);
+                }
                 return;
             }
 
-            // 2. 取得金鑰
+            // 2. 取得金鑰 (若無金鑰，且本機已有結果，就停在這裡)
             let apiKey = localStorage.getItem(STORAGE_NAME);
-            if (!apiKey) return; // 沒金鑰就維持本機顯示的結果即可
+            if (!apiKey) {
+                // 如果本機也沒結果，金鑰也沒有，那就清空轉圈圈，避免一直轉
+                if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
+                return; 
+            }
 
-            // 3. 呼叫 AI 進行確認/修正
+            // 3. 呼叫 AI
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
@@ -619,9 +644,9 @@
                             parts: [{
                                 text: `請給出中文字「${char}」的標準國語注音符號(ㄅㄆㄇ)。
                                 規則：
-                                1. 只回傳注音符號本身(包含聲調)，不要有任何解釋。
-                                2. 若有多音字，請給出最常用的國小教學讀音。
-                                範例輸出：ㄒㄩㄝˊ`
+                                1. 只回傳注音符號本身(包含聲調)。
+                                2. 絕對不要回傳拼音或英文。
+                                3. 若有多音字，給出最常用的讀音即可。`
                             }]
                         }]
                     })
@@ -633,14 +658,18 @@
 
                 if (data.candidates && data.candidates.length > 0) {
                     let apiResult = data.candidates[0].content.parts[0].text.trim();
-                    // 寫入快取
-                    localStorage.setItem(cacheKey, apiResult);
-                    // 【最後更新】：用 AI 的答案刷新畫面 (通常跟本機一樣，但有時會修正多音字)
-                    renderZhuyinUI(apiResult);
+                    apiResult = apiResult.replace(/\s/g, '').replace(/`/g, '');
+                    
+                    // 二次防護：如果 API 發瘋回傳英文，就不要更新畫面
+                    if (!/[a-zA-Z]/.test(apiResult)) {
+                        localStorage.setItem(cacheKey, apiResult);
+                        renderZhuyinUI(apiResult);
+                    }
                 }
             } catch (e) {
-                console.error("API 驗證失敗，維持本機顯示結果:", e);
-                // 這裡不用清空，因為畫面上已經有本機算的注音了，體驗更好
+                console.error("API 失敗:", e);
+                // 如果本機也失敗，API 也失敗，最後才清空轉圈圈
+                if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
             }
         }
         // --- 核心功能 ---
@@ -649,18 +678,25 @@
             const hanziBox = document.getElementById('hanzi-box');
             const status = document.getElementById('status');
             const storyBox = document.getElementById('story-box');
+            const zhuyinBox = document.getElementById('zhuyin-box'); // 取得變數
 
             if (!char) return;
 
             hanziBox.innerHTML = '';
-            // 新增：清空注音框
-            document.getElementById('zhuyin-box').textContent = '';
+            
+            // --- 修改重點：設定載入中的 SVG 動畫 ---
+            zhuyinBox.innerHTML = `
+                <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path opacity="0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            `;
             
             storyBox.style.display = 'none';
             status.textContent = '載入中...';
             status.style.color = '#888';
 
-           // 執行 API 查詢注音
+            // 執行查詢
             fetchZhuyin(char);
 
             try {
