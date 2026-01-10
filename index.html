@@ -841,9 +841,18 @@
             apiKey = apiKey.trim();
 
             storyBox.style.display = 'block';
-            storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在思考造詞造句...</div>';
+            storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在根據您選擇的讀音思考中...</div>';
 
-            const cacheKey = `vocab_${char}`; // 修改快取 Key 名稱以區隔舊資料
+            // --- 修改 A: 取得當下選中的注音 ---
+            let currentZhuyin = '';
+            // 確保有候選字且索引有效
+            if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
+                currentZhuyin = zhuyinCandidates[currentZhuyinIndex];
+            }
+
+            // --- 修改 B: 快取 Key 加上注音，避免不同讀音混淆 ---
+            // 如果沒有注音(例如剛載入)，就只用字當 Key，有的話就加上注音
+            const cacheKey = currentZhuyin ? `vocab_${char}_${currentZhuyin}` : `vocab_${char}`;
             
             // 檢查快取
             if(localStorage.getItem(cacheKey)) {
@@ -851,14 +860,30 @@
                 return;
             }
 
+            // --- 修改 C: 組合提示詞 ---
+            // 如果有指定注音，要明確加入 Prompt 指令
+            let promptText = `請針對「${char}」這個字`;
+            if (currentZhuyin) {
+                promptText += `（指定讀音：${currentZhuyin}）`;
+            }
+            
+            promptText += `，給國小學生：
+            1. 兩個常見造詞（必須符合指定讀音）。
+            2. 一個簡單溫馨的造句（必須符合指定讀音）。
+            
+            請直接列出內容，不要有標題或多餘的開場白。
+            格式範例：
+            造詞：詞彙1、詞彙2
+            造句：這裡是由詞彙組成的句子。`;
+
             try {
-                // 使用較穩定的 gemini-1.5-flash 模型 (原 gemini-3 可能為無效名稱)
+                // 使用較穩定的 gemini-1.5-flash 模型
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: `請針對「${char}」這個字，給國小學生：\n1. 兩個常見造詞。\n2. 一個簡單溫馨的造句。\n\n請直接列出內容，不要有標題或多餘的開場白。格式範例：\n造詞：開心、心願\n造句：我希望能開心過每一天。` }] }]
+                        contents: [{ parts: [{ text: promptText }] }]
                     })
                 });
                 
@@ -879,9 +904,8 @@
                 console.error(e);
             }
 
-            // 內部輔助函式：負責渲染文字和小喇叭
+            // 內部輔助函式：負責渲染文字和小喇叭 (保持不變)
             function renderContent(content) {
-                // 將換行符號轉換為 HTML 換行，並移除可能的 Markdown 符號
                 const cleanText = content.replace(/\*/g, '').trim();
                 const htmlText = cleanText.replace(/\n/g, '<br>');
                 
