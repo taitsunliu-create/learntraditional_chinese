@@ -163,6 +163,30 @@
             width: 70px;            /* 稍微加寬以容納聲調 */
             margin-left: 10px;
             position: relative;     /* 為了定位調整 */
+        cursor: default;
+            transition: background-color 0.2s;
+        }
+
+        /* 當有多個讀音時的樣式 */
+        #zhuyin-box.multi-tone {
+            cursor: pointer; /* 變手指游標 */
+            background-color: #f0f8ff; /* 淡淡的藍底表示可互動 */
+            border-radius: 8px; /* 圓角 */
+        }
+        
+        #zhuyin-box.multi-tone:active {
+            transform: scale(0.95); /* 點擊縮小效果 */
+        }
+
+        /* 右下角的循環小圖示 */
+        #zhuyin-box.multi-tone::after {
+            content: '⟳'; /* 循環符號 */
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 16px;
+            color: #4A90E2;
+            opacity: 0.6;
         }
 
         /* 新增：注音本體 (ㄅㄆㄇ) 的直排設定 */
@@ -286,7 +310,7 @@
         <div class="practice-wrapper">
             <div class="character-container">
                 <div id="hanzi-box"></div>
-                <div id="zhuyin-box"></div>
+                <div id="zhuyin-box" onclick="toggleZhuyin()"></div>
             </div>
         </div>
         
@@ -334,6 +358,10 @@
 
     <script>
         let writer;
+    
+    // --- 新增：破音字狀態管理 ---
+    let zhuyinCandidates = []; // 儲存該字的所有讀音
+    let currentZhuyinIndex = 0; // 目前顯示第幾個
         
         // --- 高年級挑戰字庫 ---
         const commonChars = [
@@ -475,7 +503,33 @@
             // 網頁載入時，嘗試靜默取得金鑰(如果以前存過，這裡就會自動讀取)
             getApiKey(); 
         };
+        // --- 新增：切換破音字 ---
+        function toggleZhuyin() {
+            // 如果只有一個讀音，就不需要切換
+            if (zhuyinCandidates.length <= 1) return;
 
+            // 循環切換索引
+            currentZhuyinIndex = (currentZhuyinIndex + 1) % zhuyinCandidates.length;
+            
+            // 重新渲染畫面
+            renderZhuyinUI(zhuyinCandidates[currentZhuyinIndex]);
+            
+            // 觸發一個簡單的震動回饋 (如果裝置支援)
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        // --- 新增：更新多音字視覺提示 ---
+        function updateMultiToneIndicator() {
+            const box = document.getElementById('zhuyin-box');
+            // 如果有多個讀音，加入一個 class 來顯示圖示
+            if (zhuyinCandidates.length > 1) {
+                box.classList.add('multi-tone');
+                box.title = "點擊可切換破音字";
+            } else {
+                box.classList.remove('multi-tone');
+                box.title = "";
+            }
+        }
         // --- 新增：共用的注音渲染函式 (負責拆解聲調與排版) ---
         function renderZhuyinUI(fullZhuyin) {
             const zhuyinBox = document.getElementById('zhuyin-box');
@@ -510,21 +564,33 @@
             
             // 【階段一：極速顯示】
             // 先用本機函式庫瞬間算出來，讓使用者不用等
+            // 【階段一：極速顯示 & 破音字偵測】
             try {
                 if (typeof pinyinPro !== 'undefined') {
-                    const localZhuyin = pinyinPro.pinyin(char, { 
+                    // 1. 取得該字的所有讀音 (使用 multiple: true)
+                    const { pinyin } = pinyinPro;
+                    const result = pinyin(char, { 
                         pattern: 'zhuyin', 
-                        toneType: 'symbol' 
+                        toneType: 'symbol',
+                        multiple: true, // 關鍵：啟用多音字模式
+                        type: 'array'   // 讓它回傳陣列
                     });
-                    // 如果本機有結果，立刻渲染！
-                    if (localZhuyin) {
-                        // 處理多音字，預設拿第一個
-                        renderZhuyinUI(localZhuyin.split(' ')[0]);
+
+                    // 2. 去除重複 (有些讀音可能只是聲調標記不同，做個簡單過濾)
+                    // 使用 Set 來去重，並轉回陣列
+                    zhuyinCandidates = [...new Set(result)];
+                    currentZhuyinIndex = 0; // 重置索引
+
+                    // 3. 渲染第一個讀音
+                    if (zhuyinCandidates.length > 0) {
+                        renderZhuyinUI(zhuyinCandidates[0]);
+                        
+                        // 如果有多個讀音，顯示提示 (稍後在 CSS 處理)
+                        updateMultiToneIndicator(); 
                     }
                 }
             } catch (localErr) {
-                // 本機失敗就算了，默默繼續往下走
-                console.log("本機預判失敗", localErr);
+                console.log("本機多音字查詢失敗", localErr);
                 zhuyinBox.textContent = '...'; 
             }
 
