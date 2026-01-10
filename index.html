@@ -610,39 +610,39 @@
             }
         }
 
-        // 新增：朗讀功能 (針對 Apple 裝置優化選聲 + 過濾注音)
+       // 新增：朗讀功能 (修復 iPad 機器人音問題)
         function speakText(text) {
             window.speechSynthesis.cancel();
             
             const voices = window.speechSynthesis.getVoices();
             
-            // 優化選聲邏輯：
-            // 1. Google (Android/Chrome 最佳)
-            // 2. Microsoft (Windows Edge 最佳)
-            // 3. Apple "Meijia" (iOS/macOS 台灣繁體最佳代表)
-            // 4. 任何台灣繁體中文
+            // 優化選聲順序：
+            // 1. Google (Chrome 瀏覽器最佳)
+            // 2. Microsoft (Edge 瀏覽器最佳)
+            // 3. Meijia (iPad/iPhone 高品質人聲)
+            // 4. Siri (iPad/iPhone Siri 語音)
             const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
                               voices.find(v => v.name.includes('Microsoft') && v.lang.includes('zh-TW')) || 
                               voices.find(v => v.name.includes('Meijia')) || 
-                              voices.find(v => v.lang.includes('zh-TW'));
+                              voices.find(v => v.name.includes('Siri'));
 
+            // 處理文字：分行並過濾注音
             const lines = text.split('\n').filter(line => line.trim() !== '');
 
             lines.forEach((line) => {
-                // 1. 過濾注音括號 (只唸國字)
-                let textForSpeech = line.replace(/[（(].*?[)）]/g, '');
-                
-                // 2. 處理標點停頓
-                textForSpeech = textForSpeech.replace(/：/g, '，');
+                // 過濾注音與調整標點
+                let textForSpeech = line.replace(/[（(].*?[)）]/g, '').replace(/：/g, '，');
 
                 const u = new SpeechSynthesisUtterance(textForSpeech);
                 u.lang = 'zh-TW';
-                
-                // Apple 裝置通常語速要稍微快一點點才自然，維持 0.85 或 0.9 均可
-                u.rate = 0.9; 
+                u.rate = 0.85; // 語速適中
                 u.pitch = 1.0;
 
-                if (bestVoice) u.voice = bestVoice;
+                // 關鍵修改：只有當我們真的找到「好聲音」時才指定
+                // 如果沒找到 (bestVoice 為空)，就不要設定 u.voice，讓 iPad 使用它預設最棒的聲音
+                if (bestVoice) {
+                    u.voice = bestVoice;
+                }
 
                 window.speechSynthesis.speak(u);
             });
