@@ -148,18 +148,36 @@
 
         #zhuyin-box {
             font-family: "BiauKai", "DFKai-SB", "標楷體", serif;
-            font-size: 42px;            /* 字體稍微加大 */
+            font-size: 42px;
             color: #555;
-            font-weight: normal;        /* 標楷體不需加粗，Normal 較清爽 */
-            writing-mode: vertical-rl;  /* 直式書寫 */
-            text-orientation: upright;  /* 文字直立 */
-            letter-spacing: 0.1em;      /* 符號間距 */
-            height: 260px;
-            width: 60px;                /* 給予足夠寬度 */
+            font-weight: normal;
+            /* 修改：改為 Flex Row 佈局，讓聲調可以排在右邊 */
             display: flex;
-            align-items: center;        /* 垂直置中 */
-            justify-content: center;    /* 水平置中 */
-            margin-left: 10px;          /* 增加一點左邊距 */
+            flex-direction: row; 
+            align-items: center;    /* 垂直置中 */
+            justify-content: center;/* 水平置中 */
+            gap: 0px;               /* 緊貼在一起 */
+            
+            height: 260px;
+            width: 70px;            /* 稍微加寬以容納聲調 */
+            margin-left: 10px;
+            position: relative;     /* 為了定位調整 */
+        }
+
+        /* 新增：注音本體 (ㄅㄆㄇ) 的直排設定 */
+        .z-main {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 0.1em;
+        }
+
+        /* 新增：聲調符號 (ˊˇˋ) 的設定 */
+        .z-tone {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            font-size: 0.8em;       /* 聲調稍微小一點點比較秀氣 */
+            margin-top: 10px;       /* 微調位置，讓它看起來在字的中間偏右 */
+            margin-right: -10px;    /* 稍微靠左修正間距 */
         }
 
         #hanzi-box::before {
@@ -465,7 +483,18 @@
             const cacheKey = `zhuyin_api_${char}`;
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
-                zhuyinBox.textContent = cached;
+                // 快取命中，一樣要執行拆解顯示邏輯
+                let mainText = cached;
+                let sideTone = '';
+                const toneMatch = cached.match(/[ˊˇˋ]/);
+                if (toneMatch) {
+                    sideTone = toneMatch[0];
+                    mainText = cached.replace(sideTone, '');
+                }
+                zhuyinBox.innerHTML = `
+                    <div class="z-main">${mainText}</div>
+                    <div class="z-tone">${sideTone}</div>
+                `;
                 return;
             }
 
@@ -509,12 +538,32 @@
                 const data = await response.json();
 
                 if (data.candidates && data.candidates.length > 0) {
-                    // 成功取得資料
-                    let result = data.candidates[0].content.parts[0].text.trim();
-                    result = result.replace(/\s/g, '').replace(/`/g, '');
+                    // 1. 清理資料
+                    let fullZhuyin = data.candidates[0].content.parts[0].text.trim();
+                    fullZhuyin = fullZhuyin.replace(/\s/g, '').replace(/`/g, '');
+
+                    // 2. 智慧拆解聲調 (標準規則：輕聲在頭，二三四聲在旁)
+                    let mainText = fullZhuyin; // 用來放ㄅㄆㄇ
+                    let sideTone = '';         // 用來放 ˊ ˇ ˋ
                     
-                    zhuyinBox.textContent = result;
-                    localStorage.setItem(cacheKey, result);
+                    // 檢查是否有側邊聲調 (二聲ˊ、三聲ˇ、四聲ˋ)
+                    const toneMatch = fullZhuyin.match(/[ˊˇˋ]/);
+                    if (toneMatch) {
+                        sideTone = toneMatch[0];
+                        mainText = fullZhuyin.replace(sideTone, ''); // 本體移除聲調
+                    }
+                    
+                    // 注意：輕聲(˙) 依照標準是寫在最上面，所以保留在 mainText 的第一個字即可，
+                    // 直排模式下它會自然出現在頂部，不需要移到側邊。
+
+                    // 3. 組合 HTML
+                    zhuyinBox.innerHTML = `
+                        <div class="z-main">${mainText}</div>
+                        <div class="z-tone">${sideTone}</div>
+                    `;
+                    
+                    // 存快取時存原始字串即可
+                    localStorage.setItem(cacheKey, fullZhuyin);
                 } else {
                     // API 有回應但沒有答案 (可能是被安全篩選擋掉)
                     console.warn("API 回傳但無候選內容:", data);
