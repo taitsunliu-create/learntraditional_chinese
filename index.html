@@ -457,12 +457,11 @@
             getApiKey(); 
         };
 
-        // --- 新增：使用 API 取得精準注音 ---
+        // --- 優化版：具備錯誤處理的注音查詢 ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
-            zhuyinBox.textContent = ''; // 清空舊內容
             
-            // 1. 檢查快取 (雖然您說不需節省，但為了顯示速度，快取還是必要的)
+            // 1. 檢查快取
             const cacheKey = `zhuyin_api_${char}`;
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
@@ -470,17 +469,18 @@
                 return;
             }
 
-            // 2. 取得金鑰 (靜默取得，若無金鑰則不顯示注音，不強跳視窗干擾流程)
-            // 注意：這裡直接使用 localStorage，避免在輸入時一直跳出密碼框
+            // 2. 取得金鑰
             let apiKey = localStorage.getItem(STORAGE_NAME);
-            if (!apiKey) return;
+            if (!apiKey) {
+                zhuyinBox.textContent = ''; 
+                return;
+            }
 
-            // 3. 呼叫 API
+            // 3. 設定載入狀態
+            zhuyinBox.textContent = '...'; 
+
             try {
-                // 顯示讀取中狀態 (用轉圈或點點)
-                zhuyinBox.textContent = '...';
-                
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -499,18 +499,34 @@
                     })
                 });
 
+                // 新增：檢查 API 回傳狀態
+                if (!response.ok) {
+                    const errData = await response.json();
+                    console.error("API 錯誤詳情:", errData);
+                    throw new Error(`API 請求失敗: ${response.status}`);
+                }
+
                 const data = await response.json();
+
                 if (data.candidates && data.candidates.length > 0) {
-                    // 清理回傳文字，移除空白與換行，確保格式整齊
+                    // 成功取得資料
                     let result = data.candidates[0].content.parts[0].text.trim();
                     result = result.replace(/\s/g, '').replace(/`/g, '');
                     
                     zhuyinBox.textContent = result;
-                    localStorage.setItem(cacheKey, result); // 寫入快取
+                    localStorage.setItem(cacheKey, result);
+                } else {
+                    // API 有回應但沒有答案 (可能是被安全篩選擋掉)
+                    console.warn("API 回傳但無候選內容:", data);
+                    zhuyinBox.textContent = ''; // 清空點點
                 }
+
             } catch (e) {
-                console.error("注音 API 發生錯誤:", e);
-                zhuyinBox.textContent = ''; // 失敗時留白
+                console.error("注音獲取失敗:", e);
+                zhuyinBox.textContent = ''; // 發生錯誤時清空點點，不要留著
+                
+                // 【備案建議】如果想要 API 失敗時改用本地庫，可在此加入 pinyin-pro 的程式碼
+                // 但目前我們先確保它不會卡住
             }
         }
         // --- 核心功能 ---
