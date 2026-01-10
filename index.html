@@ -178,15 +178,23 @@
         }
 
         /* 右下角的循環小圖示 */
+        /* 右下角的循環小圖示 - 增強版 */
         #zhuyin-box.multi-tone::after {
             content: '⟳'; 
             position: absolute;
             bottom: 5px;
             right: 5px;
-            font-size: 18px; /* 稍微加大 */
-            color: #4A90E2;  /* 鮮豔的藍色 */
+            font-size: 20px;   /* 變大 */
+            color: #E67E22;    /* 改用亮橘色，比較顯眼 */
             font-weight: bold;
-            opacity: 0.8;    /* 增加不透明度 */
+            opacity: 1;        /* 不透明 */
+            animation: pulse-icon 2s infinite; /* 加入呼吸動畫 */
+        }
+
+        @keyframes pulse-icon {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
 
         /* 新增：注音本體 (ㄅㄆㄇ) 的直排設定 */
@@ -571,6 +579,7 @@
             `;
         }
         // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 ---
+        // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
             
@@ -588,6 +597,7 @@
                     });
 
                     // 2. 嚴格過濾：過濾掉任何包含英文字母(a-z)的結果
+                    // 這是防止「跳出拼音」的關鍵
                     const cleanCandidates = [...new Set(result)].filter(item => {
                         return !/[a-zA-Z]/.test(item);
                     });
@@ -600,12 +610,8 @@
                         renderZhuyinUI(zhuyinCandidates[0]);
                         updateMultiToneIndicator(); 
                     } else {
-                        // 如果本機沒查到，顯示轉圈圈
-                        zhuyinBox.innerHTML = `
-                            <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path opacity="0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>`;
+                        // 如果本機沒查到，保持轉圈圈動畫等待 API
+                        console.log("本機無資料，等待 API...");
                     }
                 }
             } catch (localErr) {
@@ -614,8 +620,8 @@
 
             // 【階段二：API 精準驗證 (背景執行)】
             
-            // 關鍵修改：如果本地已經確認是破音字(有多個結果)，就不要讓 API 覆蓋畫面
-            // 因為 API 一次通常只回傳一個讀音，會破壞破音字選單
+            // 修正重點：如果本地已經確認是破音字(有多個結果)，就不要讓 API 覆蓋畫面
+            // 這樣才能保留切換功能
             if (zhuyinCandidates.length > 1) {
                 return; 
             }
@@ -636,9 +642,9 @@
                 return; 
             }
 
-            // 3. 呼叫 AI (修正模型名稱)
+            // 3. 呼叫 AI (已修正模型名稱)
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -670,22 +676,28 @@
                 }
             } catch (e) {
                 console.error("API 失敗:", e);
+                // 只有在本機也沒資料時，才清空轉圈圈，避免使用者看到空白
                 if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
             }
         }
-        // --- 核心功能 ---
         function loadChar() {
             const char = document.getElementById('char-input').value.trim();
             const hanziBox = document.getElementById('hanzi-box');
             const status = document.getElementById('status');
             const storyBox = document.getElementById('story-box');
-            const zhuyinBox = document.getElementById('zhuyin-box'); // 取得變數
+            const zhuyinBox = document.getElementById('zhuyin-box');
 
             if (!char) return;
 
+            // --- 修正 1: 重置破音字狀態，避免上一字的資料殘留 ---
+            zhuyinCandidates = [];
+            currentZhuyinIndex = 0;
+            zhuyinBox.classList.remove('multi-tone'); // 移除舊的互動樣式
+            zhuyinBox.title = "";
+
             hanziBox.innerHTML = '';
             
-            // --- 修改重點：設定載入中的 SVG 動畫 ---
+            // --- 修正 2: 設定載入中的 SVG 動畫 (過渡期間顯示) ---
             zhuyinBox.innerHTML = `
                 <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -699,6 +711,8 @@
 
             // 執行查詢
             fetchZhuyin(char);
+
+            // ... (後面的 HanziWriter 程式碼保持不變) ...
 
             try {
                 writer = HanziWriter.create('hanzi-box', char, {
