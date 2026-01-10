@@ -610,37 +610,40 @@
             }
         }
 
-        // 新增：朗讀造詞造句的功能 (不消耗 API)
-        // 新增：朗讀造詞造句的功能 (優化自然度)
-        // 新增：朗讀造詞造句的功能 (分段朗讀 + 優化停頓)
+        // 新增：朗讀功能 (針對 Apple 裝置優化選聲 + 過濾注音)
         function speakText(text) {
-            window.speechSynthesis.cancel(); // 1. 先停止當前所有聲音
+            window.speechSynthesis.cancel();
             
-            // 2. 取得最佳語音包 (Google > Microsoft > 其他)
             const voices = window.speechSynthesis.getVoices();
-            const bestVoice = voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Google')) || 
-                              voices.find(v => v.lang.includes('zh-TW') && v.name.includes('Microsoft')) || 
+            
+            // 優化選聲邏輯：
+            // 1. Google (Android/Chrome 最佳)
+            // 2. Microsoft (Windows Edge 最佳)
+            // 3. Apple "Meijia" (iOS/macOS 台灣繁體最佳代表)
+            // 4. 任何台灣繁體中文
+            const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
+                              voices.find(v => v.name.includes('Microsoft') && v.lang.includes('zh-TW')) || 
+                              voices.find(v => v.name.includes('Meijia')) || 
                               voices.find(v => v.lang.includes('zh-TW'));
 
-            // 3. 文字處理：將文字依照「換行」拆成陣列，這樣可以分段唸
-            // 過濾掉空行，避免頓太久
             const lines = text.split('\n').filter(line => line.trim() !== '');
 
-            // 4. 逐行朗讀 (利用佇列機制產生自然停頓)
             lines.forEach((line) => {
-                // 優化：將冒號「：」替換為「，」，讓語音在唸完標題(如：造詞)後會稍微換氣
-                let processedLine = line.replace(/：/g, '，');
+                // 1. 過濾注音括號 (只唸國字)
+                let textForSpeech = line.replace(/[（(].*?[)）]/g, '');
                 
-                const u = new SpeechSynthesisUtterance(processedLine);
+                // 2. 處理標點停頓
+                textForSpeech = textForSpeech.replace(/：/g, '，');
+
+                const u = new SpeechSynthesisUtterance(textForSpeech);
                 u.lang = 'zh-TW';
-                u.rate = 0.85; // 設定 0.85，對孩子來說清楚且不拖泥帶水
-                u.pitch = 1.0; // 正常音高
+                
+                // Apple 裝置通常語速要稍微快一點點才自然，維持 0.85 或 0.9 均可
+                u.rate = 0.9; 
+                u.pitch = 1.0;
 
-                if (bestVoice) {
-                    u.voice = bestVoice;
-                }
+                if (bestVoice) u.voice = bestVoice;
 
-                // 送出這一行 (瀏覽器唸完這一行後，會自動停頓一下才唸下一行)
                 window.speechSynthesis.speak(u);
             });
         }
