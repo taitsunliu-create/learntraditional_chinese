@@ -12,6 +12,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/pinyin-pro"></script>
+
     <style>
         :root {
             --primary-color: #4A90E2; /* 藍色實線 */
@@ -136,6 +138,27 @@
             background: #fff; border-radius: 8px; overflow: hidden; z-index: 1; 
         }
         #hanzi-box svg { position: relative; z-index: 10; }
+        /* 新增：注音容器設定 */
+        .character-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px; /* 國字和注音的距離 */
+        }
+
+        #zhuyin-box {
+            font-family: "BiauKai", "DFKai-SB", "標楷體", serif; /* 強制使用標楷體 */
+            font-size: 40px;          /* 注音大小 */
+            color: #555;              /* 注音顏色 */
+            font-weight: bold;
+            writing-mode: vertical-rl; /* 關鍵：設定為直寫 (從右到左) */
+            text-orientation: upright; /* 讓文字直立 */
+            letter-spacing: 0.2em;     /* 拉開注音符號間距 */
+            height: 260px;             /* 與國字框同高 */
+            display: flex;
+            align-items: center;       /* 垂直置中 */
+            justify-content: center;
+        }
 
         #hanzi-box::before {
             content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 1px;
@@ -240,7 +263,10 @@
         </div>
 
         <div class="practice-wrapper">
-            <div id="hanzi-box"></div>
+            <div class="character-container">
+                <div id="hanzi-box"></div>
+                <div id="zhuyin-box"></div>
+            </div>
         </div>
         
         <div id="status" style="height:20px; color:#888; margin-bottom:10px; font-weight:bold; font-family: sans-serif;"></div>
@@ -439,9 +465,23 @@
             if (!char) return;
 
             hanziBox.innerHTML = '';
+            // 新增：清空注音框
+            document.getElementById('zhuyin-box').textContent = '';
+            
             storyBox.style.display = 'none';
             status.textContent = '載入中...';
             status.style.color = '#888';
+
+            // 新增：產生直式注音 (使用 pinyin-pro)
+            try {
+                const { pinyin } = pinyinPro;
+                // 轉換為注音，toneType: 'symbol' 會保留標準聲調符號
+                const zhuyin = pinyin(char, { pattern: 'zhuyin', toneType: 'symbol' });
+                // 填入注音框 (若有多音字，預設取第一個)
+                document.getElementById('zhuyin-box').textContent = zhuyin.split(' ')[0];
+            } catch (e) {
+                console.error("注音轉換失敗", e);
+            }
 
             try {
                 writer = HanziWriter.create('hanzi-box', char, {
