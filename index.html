@@ -524,18 +524,17 @@
             // 網頁載入時，嘗試靜默取得金鑰(如果以前存過，這裡就會自動讀取)
             getApiKey(); 
         };
-        // --- 新增：切換破音字 ---
         function toggleZhuyin() {
-            // 如果只有一個讀音，就不需要切換
             if (zhuyinCandidates.length <= 1) return;
-
-            // 循環切換索引
             currentZhuyinIndex = (currentZhuyinIndex + 1) % zhuyinCandidates.length;
             
-            // 重新渲染畫面
-            renderZhuyinUI(zhuyinCandidates[currentZhuyinIndex]);
+            // 修正：取物件中的 zhuyin 屬性來顯示
+            let displayZhuyin = zhuyinCandidates[currentZhuyinIndex];
+            if (typeof displayZhuyin === 'object') {
+                displayZhuyin = displayZhuyin.zhuyin;
+            }
             
-            // 觸發一個簡單的震動回饋 (如果裝置支援)
+            renderZhuyinUI(displayZhuyin);
             if (navigator.vibrate) navigator.vibrate(50);
         }
 
@@ -578,56 +577,42 @@
                 <div class="z-tone">${sideTone}</div>
             `;
         }
-       // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 (修正版：停用本機大陸口音庫) ---
+       // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 + 同音字修正 ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
             
-            // 【階段一：本機極速顯示】
-            // ⚠️ 重要修正：已註解停用 pinyin-pro，因為該資料庫為中國大陸標準
-            // 我們直接跳過這一段，交給後面的 AI 處理以確保是「台灣教育部標準」。
-            /*
-            try {
-                if (typeof pinyinPro !== 'undefined') {
-                    // 原本的程式碼會在這裡查到大陸讀音...
-                }
-            } catch (localErr) { ... }
-            */
-           
-            // 直接顯示載入中，等待 API 或快取
+            // 跳過本機庫顯示...
             if (zhuyinCandidates.length === 0) {
-                 console.log("跳過本機庫，使用精準 API 或快取...");
+                 console.log("使用精準 API (含同音字校正)...");
             }
 
-            // 【階段二：API 精準驗證 (背景執行)】
-            
-            // 1. 檢查快取 (Key 格式： zhuyin_api_字)
-            // 系統會優先讀取您之前查過且存在瀏覽器裡的正確讀音
-            const cacheKey = `zhuyin_api_${char}`;
+            // Key 加上 _v2 以區隔舊版快取格式
+            const cacheKey = `zhuyin_api_v2_${char}`;
             const cachedRaw = localStorage.getItem(cacheKey);
             
             if (cachedRaw) {
-                const cachedArr = cachedRaw.split('/');
-                const validCached = cachedArr.filter(t => !/[a-zA-Z]/.test(t)); // 過濾雜訊
-                
-                if (validCached.length > 0) {
-                    zhuyinCandidates = validCached; 
-                    currentZhuyinIndex = 0;
-                    renderZhuyinUI(zhuyinCandidates[0]);
-                    updateMultiToneIndicator(); 
-                    return;
+                try {
+                    // 解析快取 (格式：JSON字串)
+                    const validCached = JSON.parse(cachedRaw);
+                    if (validCached && validCached.length > 0) {
+                        zhuyinCandidates = validCached; 
+                        currentZhuyinIndex = 0;
+                        renderZhuyinUI(zhuyinCandidates[0].zhuyin);
+                        updateMultiToneIndicator(); 
+                        return;
+                    }
+                } catch(e) {
+                    localStorage.removeItem(cacheKey); // 格式錯誤就清除
                 }
             }
 
-            // 2. 取得金鑰
             let apiKey = localStorage.getItem(STORAGE_NAME);
             if (!apiKey) {
                 if (zhuyinCandidates.length === 0) zhuyinBox.innerHTML = '';
                 return; 
             }
 
-            // 3. 呼叫 AI (Gemini)
             try {
-                // 使用 flash 模型即可，速度快且便宜
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
@@ -635,16 +620,24 @@
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                // 這裡的 Prompt 已經嚴格規定「台灣教育部標準」
-                                text: `請扮演嚴格的台灣國語文老師，依據「台灣教育部重編國語辭典（修訂本）」標準，給出中文字「${char}」的所有注音符號。
+                                text: `請扮演台灣國語文老師，依據「台灣教育部重編國語辭典」標準，給出「${char}」的所有注音與對應的一個同音國字。
+                                
+                                目的：
+                                為了讓 Text-to-Speech 引擎能發出正確的破音字讀音，我們需要一個發音完全相同的「替代字」。
 
                                 嚴格規則：
-                                1. **排除中國大陸讀音**：若兩岸讀音不同，必須只回傳台灣讀音。
-                                   （例如：「和」麵是ㄏㄨㄛˋ，絕不可回傳ㄏㄨㄛˊ；「企」業是ㄑㄧˋ，絕不可回傳ㄑㄧˇ；「液」體是ㄧㄝˋ；「垃」圾是ㄌㄜˋ）。
-                                2. **破音字全列出**：若該字在台灣標準下有多個讀音，請務必全部列出。
-                                3. **格式要求**：僅回傳注音符號，多個讀音用斜線 "/" 分隔，不要出現任何拼音、解釋或標點符號。
-                                
-                                範例回傳：ㄌㄜˋ/ㄩㄝˋ`
+                                1. **排除中國大陸讀音**：只回傳台灣教育部標準讀音。
+                                2. **格式**：注音#同音字
+                                3. **分隔**：多個讀音用斜線 "/" 分隔。
+                                4. **同音字選擇**：請選最常見、發音最穩定的字。如果該讀音就是該字最常用的音，同音字可以回傳原字。
+
+                                範例輸入：和
+                                範例回傳：ㄏㄜˊ#河/ㄏㄜˋ#賀/ㄏㄢˋ#汗/ㄏㄨㄛˋ#貨
+
+                                範例輸入：學
+                                範例回傳：ㄒㄩㄝˊ#學
+
+                                請開始針對「${char}」輸出：`
                             }]
                         }]
                     })
@@ -656,19 +649,41 @@
 
                 if (data.candidates && data.candidates.length > 0) {
                     let apiResult = data.candidates[0].content.parts[0].text.trim();
+                    // 清理可能的多餘符號
                     apiResult = apiResult.replace(/\s/g, '').replace(/`/g, '');
                     
-                    let newCandidates = apiResult.split('/');
-                    newCandidates = newCandidates.filter(item => item && !/[a-zA-Z]/.test(item));
+                    let rawList = apiResult.split('/');
+                    let newCandidates = [];
+
+                    rawList.forEach(item => {
+                        // 解析 "注音#同音字"
+                        let parts = item.split('#');
+                        if (parts.length === 2) {
+                            // 過濾掉含有英文字母的錯誤資料
+                            if (!/[a-zA-Z]/.test(parts[0])) {
+                                newCandidates.push({
+                                    zhuyin: parts[0],
+                                    homophone: parts[1]
+                                });
+                            }
+                        } else if (parts.length === 1 && !/[a-zA-Z]/.test(parts[0])) {
+                             // 容錯：如果 AI 忘了給同音字，就用原字
+                             newCandidates.push({
+                                zhuyin: parts[0],
+                                homophone: char
+                            });
+                        }
+                    });
 
                     if (newCandidates.length > 0) {
-                        // 存入快取，下次就不會再扣 API 次數了
-                        localStorage.setItem(cacheKey, newCandidates.join('/'));
+                        // 存入快取 (存成 JSON 字串)
+                        localStorage.setItem(cacheKey, JSON.stringify(newCandidates));
                         
                         zhuyinCandidates = newCandidates;
                         currentZhuyinIndex = 0;
                         
-                        renderZhuyinUI(zhuyinCandidates[0]);
+                        // 渲染時只傳入注音字串
+                        renderZhuyinUI(zhuyinCandidates[0].zhuyin);
                         updateMultiToneIndicator(); 
                     }
                 }
@@ -684,12 +699,12 @@
             const storyBox = document.getElementById('story-box');
             const zhuyinBox = document.getElementById('zhuyin-box');
 
-            if (!char) return;
+           if (!char) return;
 
-            // --- 修正 1: 重置破音字狀態，避免上一字的資料殘留 ---
-            zhuyinCandidates = [];
+            // --- 重置狀態 ---
+            zhuyinCandidates = []; // 清空陣列
             currentZhuyinIndex = 0;
-            zhuyinBox.classList.remove('multi-tone'); // 移除舊的互動樣式
+            zhuyinBox.classList.remove('multi-tone');
             zhuyinBox.title = "";
 
             hanziBox.innerHTML = '';
@@ -784,26 +799,31 @@
             status.textContent = "發音中...";
             
             try {
-                // 保留擴充空間
-                throw new Error("使用瀏覽器發音");
-            } catch (e) {
-                console.log("轉為瀏覽器發音");
+                // 使用瀏覽器發音
                 
-                // --- 修正重點：只朗讀「注音符號」 ---
-                // 這樣瀏覽器會直接發出該注音對應的讀音，且只會發音一次
+                // --- 修正重點：唸「同音字」而不是「注音」 ---
                 let textToSpeak = char;
                 
                 if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
-                    const currentZhuyin = zhuyinCandidates[currentZhuyinIndex];
-                    textToSpeak = currentZhuyin; // 例如直接唸 "ㄏㄨㄛˋ"
+                    const currentObj = zhuyinCandidates[currentZhuyinIndex];
+                    
+                    // 如果有同音字資料 (新版邏輯)，就唸同音字
+                    if (currentObj && currentObj.homophone) {
+                        textToSpeak = currentObj.homophone;
+                        console.log(`原字: ${char}, 實際發音(同音字): ${textToSpeak}`);
+                    } else if (typeof currentObj === 'string') {
+                        // 相容舊版資料 (如果快取還沒清空)
+                        textToSpeak = currentObj; 
+                    }
                 }
                 
                 window.speechSynthesis.cancel();
                 const u = new SpeechSynthesisUtterance(textToSpeak);
                 u.lang = 'zh-TW';
-                u.rate = 0.8; // 速度適中
                 
-                // 語音選擇邏輯 (選出最好聽的聲音)
+                // 修正：發國字音時，速度不用特地調慢，0.9 ~ 1.0 最自然
+                u.rate = 0.9; 
+                
                 const voices = window.speechSynthesis.getVoices();
                 const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
                                   voices.find(v => v.name.includes('Microsoft') && v.lang.includes('zh-TW')) || 
@@ -814,6 +834,8 @@
                 }
 
                 window.speechSynthesis.speak(u);
+            } catch (e) {
+                console.error(e);
             }
             
             setTimeout(() => {
@@ -825,8 +847,6 @@
         async function getStory() {
             const char = document.getElementById('char-input').value;
             const storyBox = document.getElementById('story-box');
-            
-            // 1. 取得金鑰
             let apiKey = getApiKey();
             if (!apiKey) return; 
             apiKey = apiKey.trim();
@@ -834,23 +854,22 @@
             storyBox.style.display = 'block';
             storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在根據您選擇的讀音思考中...</div>';
 
-            // --- 修改 A: 取得當下選中的注音 ---
+            // --- 修正：正確取出注音字串 ---
             let currentZhuyin = '';
-            // 確保有候選字且索引有效
             if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
-                currentZhuyin = zhuyinCandidates[currentZhuyinIndex];
+                const item = zhuyinCandidates[currentZhuyinIndex];
+                // 判斷是新版物件還是舊版字串
+                currentZhuyin = (typeof item === 'object') ? item.zhuyin : item;
             }
 
-            // --- 修改 B: 快取 Key 加上注音，避免不同讀音混淆 ---
-            // 如果沒有注音(例如剛載入)，就只用字當 Key，有的話就加上注音
+            // 快取 Key
             const cacheKey = currentZhuyin ? `vocab_${char}_${currentZhuyin}` : `vocab_${char}`;
-            
-            // 檢查快取
             if(localStorage.getItem(cacheKey)) {
                 renderContent(localStorage.getItem(cacheKey));
                 return;
             }
-
+            
+            
             // --- 修改 C: 組合提示詞 ---
             // 如果有指定注音，要明確加入 Prompt 指令
             let promptText = `請針對「${char}」這個字`;
