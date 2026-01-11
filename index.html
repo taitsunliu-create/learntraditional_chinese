@@ -526,15 +526,17 @@
         };
         function toggleZhuyin() {
             if (zhuyinCandidates.length <= 1) return;
+
             currentZhuyinIndex = (currentZhuyinIndex + 1) % zhuyinCandidates.length;
             
-            // 修正：取物件中的 zhuyin 屬性來顯示
+            // 修改：從物件中取出 zhuyin 屬性來顯示
             let displayZhuyin = zhuyinCandidates[currentZhuyinIndex];
             if (typeof displayZhuyin === 'object') {
                 displayZhuyin = displayZhuyin.zhuyin;
             }
             
             renderZhuyinUI(displayZhuyin);
+            
             if (navigator.vibrate) navigator.vibrate(50);
         }
 
@@ -577,17 +579,17 @@
                 <div class="z-tone">${sideTone}</div>
             `;
         }
-       // --- 極速版：嚴格注音過濾 + 破音字支援 + API 驗證 + 同音字修正 ---
+       // --- 極速版：嚴格台灣讀音 + 同音字修正 + 強制刷新快取 ---
         async function fetchZhuyin(char) {
             const zhuyinBox = document.getElementById('zhuyin-box');
             
-            // 跳過本機庫顯示...
+            // 跳過本機庫顯示，等待精準 API
             if (zhuyinCandidates.length === 0) {
                  console.log("使用精準 API (含同音字校正)...");
             }
 
-            // Key 加上 _v2 以區隔舊版快取格式
-            const cacheKey = `zhuyin_api_v2_${char}`;
+            // 【關鍵修正 1】更改快取鍵名 (加上 _v2)，強迫捨棄舊的含「ㄏㄨㄛˊ」的錯誤資料
+            const cacheKey = `zhuyin_tw_v2_${char}`;
             const cachedRaw = localStorage.getItem(cacheKey);
             
             if (cachedRaw) {
@@ -597,6 +599,7 @@
                     if (validCached && validCached.length > 0) {
                         zhuyinCandidates = validCached; 
                         currentZhuyinIndex = 0;
+                        // 顯示時只取注音部分
                         renderZhuyinUI(zhuyinCandidates[0].zhuyin);
                         updateMultiToneIndicator(); 
                         return;
@@ -613,23 +616,24 @@
             }
 
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                // 使用您確認可用的模型版本
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: `請扮演台灣國語文老師，依據「台灣教育部重編國語辭典」標準，給出「${char}」的所有注音與對應的一個同音國字。
-                                
-                                目的：
-                                為了讓 Text-to-Speech 引擎能發出正確的破音字讀音，我們需要一個發音完全相同的「替代字」。
+                                text: `請扮演嚴格的台灣國語文老師，依據「台灣教育部重編國語辭典」標準，給出「${char}」的所有注音，以及為了讓 TTS 發音正確所需的「同音國字」。
 
                                 嚴格規則：
-                                1. **排除中國大陸讀音**：只回傳台灣教育部標準讀音。
-                                2. **格式**：注音#同音字
-                                3. **分隔**：多個讀音用斜線 "/" 分隔。
-                                4. **同音字選擇**：請選最常見、發音最穩定的字。如果該讀音就是該字最常用的音，同音字可以回傳原字。
+                                1. **排除中國大陸讀音**：若兩岸讀音不同，只回傳台灣教育部標準。（例如：「和」絕不可回傳ㄏㄨㄛˊ，只有ㄏㄜˊ/ㄏㄜˋ/ㄏㄢˋ/ㄏㄨㄛˋ）。
+                                2. **回傳格式**：注音#同音字
+                                3. **多音字分隔**：用斜線 "/" 分隔。
+                                4. **同音字邏輯**：
+                                   - 若該注音為該字最常用讀音，同音字回傳「原字」。(例: 學 -> ㄒㄩㄝˊ#學)
+                                   - 若為破音字，請找一個發音完全相同的常見字。(例: 和(ㄏㄨㄛˋ) -> ㄏㄨㄛˋ#貨)
 
                                 範例輸入：和
                                 範例回傳：ㄏㄜˊ#河/ㄏㄜˋ#賀/ㄏㄢˋ#汗/ㄏㄨㄛˋ#貨
@@ -649,7 +653,6 @@
 
                 if (data.candidates && data.candidates.length > 0) {
                     let apiResult = data.candidates[0].content.parts[0].text.trim();
-                    // 清理可能的多餘符號
                     apiResult = apiResult.replace(/\s/g, '').replace(/`/g, '');
                     
                     let rawList = apiResult.split('/');
@@ -659,8 +662,7 @@
                         // 解析 "注音#同音字"
                         let parts = item.split('#');
                         if (parts.length === 2) {
-                            // 過濾掉含有英文字母的錯誤資料
-                            if (!/[a-zA-Z]/.test(parts[0])) {
+                            if (!/[a-zA-Z]/.test(parts[0])) { // 過濾雜訊
                                 newCandidates.push({
                                     zhuyin: parts[0],
                                     homophone: parts[1]
@@ -682,7 +684,6 @@
                         zhuyinCandidates = newCandidates;
                         currentZhuyinIndex = 0;
                         
-                        // 渲染時只傳入注音字串
                         renderZhuyinUI(zhuyinCandidates[0].zhuyin);
                         updateMultiToneIndicator(); 
                     }
@@ -785,7 +786,7 @@
             }
         }
 
-       // --- AI 發音與故事功能 ---
+      // --- AI 發音與故事功能 ---
         async function speak() {
             const char = document.getElementById('char-input').value;
             const btn = document.getElementById('btn-speak');
@@ -799,20 +800,25 @@
             status.textContent = "發音中...";
             
             try {
-                // 使用瀏覽器發音
+                // 保留擴充空間
+                throw new Error("使用瀏覽器發音");
+            } catch (e) {
+                console.log("轉為瀏覽器發音");
                 
-                // --- 修正重點：唸「同音字」而不是「注音」 ---
+                // 【關鍵修正 2】唸「同音字」而不是「注音」
+                // 這解決了「學」被分開唸成 ㄒ-ㄩ-ㄝ 的問題，也解決了「和」唸不準的問題
                 let textToSpeak = char;
                 
                 if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
                     const currentObj = zhuyinCandidates[currentZhuyinIndex];
                     
-                    // 如果有同音字資料 (新版邏輯)，就唸同音字
+                    // 新版資料結構是物件 {zhuyin:..., homophone:...}
                     if (currentObj && currentObj.homophone) {
                         textToSpeak = currentObj.homophone;
-                        console.log(`原字: ${char}, 實際發音(同音字): ${textToSpeak}`);
-                    } else if (typeof currentObj === 'string') {
-                        // 相容舊版資料 (如果快取還沒清空)
+                        console.log(`原字: ${char}, 實際朗讀(同音代換): ${textToSpeak}`);
+                    } 
+                    // 相容舊版資料 (以防萬一)
+                    else if (typeof currentObj === 'string') {
                         textToSpeak = currentObj; 
                     }
                 }
@@ -820,9 +826,7 @@
                 window.speechSynthesis.cancel();
                 const u = new SpeechSynthesisUtterance(textToSpeak);
                 u.lang = 'zh-TW';
-                
-                // 修正：發國字音時，速度不用特地調慢，0.9 ~ 1.0 最自然
-                u.rate = 0.9; 
+                u.rate = 0.9; // 唸國字時，速度 0.9 最自然
                 
                 const voices = window.speechSynthesis.getVoices();
                 const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
@@ -834,8 +838,6 @@
                 }
 
                 window.speechSynthesis.speak(u);
-            } catch (e) {
-                console.error(e);
             }
             
             setTimeout(() => {
