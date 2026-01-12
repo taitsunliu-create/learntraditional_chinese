@@ -941,7 +941,7 @@
             }
         }
 
-       // 新增：朗讀功能 (修正版：強制破音字同音代換)
+       // 新增：朗讀功能 (修正版：加入「和」字強制修正字典)
         function speakText(text) {
             window.speechSynthesis.cancel();
             
@@ -954,29 +954,43 @@
             // 1. 取得當前的主角字與同音字
             const targetChar = document.getElementById('char-input').value.trim();
             let targetHomophone = null;
+            let currentZhuyin = '';
 
-            // 從全域變數中抓取現在選中的同音字 (例如：選了ㄏㄜˋ，同音字是「賀」)
+            // 從全域變數中抓取現在選中的同音字
             if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
                 const currentObj = zhuyinCandidates[currentZhuyinIndex];
-                if (currentObj && currentObj.homophone) {
+                
+                // 取得注音與同音字
+                if (typeof currentObj === 'object') {
+                    currentZhuyin = currentObj.zhuyin; // 例如：ㄏㄨㄛˋ
                     targetHomophone = currentObj.homophone;
+                } else {
+                    currentZhuyin = currentObj;
+                }
+
+                // --- 👑 強制修正字典 (針對 AI 容易出錯的字進行硬性規定) ---
+                // 這是解決「和」字發音問題的最強手段
+                if (targetChar === '和') {
+                    if (currentZhuyin.includes('ㄏㄢˋ')) targetHomophone = '漢'; // 我和你 (漢)
+                    else if (currentZhuyin.includes('ㄏㄨㄛˋ')) targetHomophone = '貨'; // 和麵 (貨)
+                    else if (currentZhuyin.includes('ㄏㄜˋ')) targetHomophone = '賀'; // 應和 (賀)
+                    else if (currentZhuyin.includes('ㄏㄜˊ')) targetHomophone = '盒'; // 和平 (盒 - 其實用原字也可以，但盒保證二聲)
                 }
             }
+
+            console.log(`[發音除錯] 原字:${targetChar}, 注音:${currentZhuyin}, 替換為:${targetHomophone}`);
 
             // 2. 處理文字：分行並過濾注音
             const lines = text.split('\n').filter(line => line.trim() !== '');
 
             lines.forEach((line) => {
-                // 基本清理：過濾括號內的注音、將冒號轉為逗號以利停頓
+                // 基本清理
                 let textForSpeech = line.replace(/[（(].*?[)）]/g, '').replace(/：/g, '，');
 
                 // --- 關鍵修正：聽覺替身 ---
-                // 如果有同音字，且同音字跟原字不一樣 (例如 和 vs 賀)，就在「發音字串」中進行替換
-                // 畫面上依然顯示「應和」，但傳給喇叭的是「應賀」
+                // 只要有指定同音字，就進行替換
                 if (targetChar && targetHomophone && targetChar !== targetHomophone) {
-                    // 使用 Global Replace (g) 將整句裡的目標字都換成同音字
-                    // 這樣 "微風也溫柔地在一旁應和" -> 變為 -> "微風也溫柔地在一旁應賀"
-                    // 瀏覽器就會乖乖唸出 ㄏㄜˋ
+                    // 使用 split+join 進行全域替換
                     textForSpeech = textForSpeech.split(targetChar).join(targetHomophone);
                 }
 
