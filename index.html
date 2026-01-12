@@ -576,14 +576,7 @@
         
         // ... (中間省略 loadChar, randomChar, animateStroke, startQuiz 等函式，保持不變) ...
 
-        window.onload = function() {
-            loadChar();
-            document.getElementById('char-input').addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') loadChar();
-            });
-            // 網頁載入時，嘗試靜默取得金鑰(如果以前存過，這裡就會自動讀取)
-            getApiKey(); 
-        };
+        
         function toggleZhuyin() {
             if (zhuyinCandidates.length <= 1) return;
 
