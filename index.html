@@ -319,9 +319,39 @@
         .modal-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; margin-left: 10px; }
         .btn-cancel { background: #eee; color: #555; }
         .btn-save { background: var(--primary-color); color: white; }
+
+        /* --- 新增：手動模擬的 iOS 進場畫面 --- */
+        #ios-splash-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #F9FAFB; /* 配合您的背景色 */
+            z-index: 9999; /* 確保在最上層 */
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease-out; /* 淡出動畫 */
+        }
+        #ios-splash-overlay img {
+            width: 120px; height: 120px; margin-bottom: 20px;
+            border-radius: 24px; /* 模擬 App Icon 圓角 */
+            box-shadow: 0 10px 25px rgba(74, 144, 226, 0.2);
+        }
+        #ios-splash-overlay h2 {
+            font-family: 'Helvetica Rounded', 'Arial Rounded MT Bold', sans-serif;
+            color: #4A90E2; font-size: 1.5rem; margin: 0; letter-spacing: 2px;
+        }
+
+    </style>
     </style>
 </head>
 <body>
+    <div id="ios-splash-overlay">
+        <img src="icon-512.png" alt="Logo">
+        <h2>快樂學寫字</h2>
+        <div style="margin-top: 20px;">
+            <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle opacity="0.25" cx="12" cy="12" r="10" stroke="#4A90E2" stroke-width="4"></circle>
+                <path opacity="0.75" fill="#4A90E2" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </div>
 
     <div style="position: absolute; top: 20px; right: 20px; z-index: 100;">
         <button class="settings-btn" style="position: static;" onclick="resetKey()" title="重設狀態/清除快取">
@@ -445,10 +475,23 @@
         ];
 
         window.onload = function() {
+            // 1. 執行原本的初始化
             loadChar();
             document.getElementById('char-input').addEventListener('keypress', function (e) {
                 if (e.key === 'Enter') loadChar();
             });
+            getApiKey(); 
+
+            // 2. 新增：處理進場畫面淡出
+            const splash = document.getElementById('ios-splash-overlay');
+            if (splash) {
+                setTimeout(() => {
+                    splash.style.opacity = '0'; // 開始變透明
+                    setTimeout(() => {
+                        splash.style.display = 'none'; // 動畫結束後移除
+                    }, 500); 
+                }, 500); // 這裡可以調整停留時間 (目前是 0.5秒)
+            }
         };
 
         // --- 金鑰管理 (具備自動記憶功能) ---
