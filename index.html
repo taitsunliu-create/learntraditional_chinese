@@ -81,7 +81,15 @@
         .controls { grid-area: controls; }
         #story-box { grid-area: story; }
 
-        /* 修改：將電腦版切換點改為 1024px，讓 iPad 直向時保持單欄顯示 */
+        /* 修改前 (原本的樣子) */
+        /*
+        @media (min-width: 1024px) {
+            ...
+            #story-box { margin-top: 0; height: 100%; min-height: 200px; }
+        }
+        */
+
+        /* 修改後 (請改成這樣) */
         @media (min-width: 1024px) {
             body { padding: 40px; }
             .app-container {
@@ -102,7 +110,13 @@
             .input-group { justify-content: flex-start; margin-bottom: 0; }
             .practice-wrapper { justify-content: center; }
             .controls { grid-template-columns: 1fr 1fr; align-content: start; }
-            #story-box { margin-top: 0; height: 100%; min-height: 200px; }
+            
+            /* 修正重點：將 height: 100% 改為 auto，讓盒子能隨文字長高 */
+            #story-box { 
+                margin-top: 0; 
+                height: auto;       /* <--- 改這裡 */
+                min-height: 200px; 
+            }
         }
 
         .input-group {
