@@ -856,40 +856,44 @@
             storyBox.style.display = 'block';
             storyBox.innerHTML = '<div style="text-align:center; color:#888;">AI 正在根據您選擇的讀音思考中...</div>';
 
-            // --- 修正：正確取出注音字串 ---
+            // --- 步驟 1：資料淨化 (Data Sanitization) ---
+            // 我們必須確保傳給 AI 的只有「注音」，絕對不要誤傳「同音字」
             let currentZhuyin = '';
             if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
                 const item = zhuyinCandidates[currentZhuyinIndex];
-                // 判斷是新版物件還是舊版字串
+                // 無論資料結構為何，這裡嚴格只取出注音符號
                 currentZhuyin = (typeof item === 'object') ? item.zhuyin : item;
             }
 
-            // 快取 Key
+            // 快取 Key (使用淨化後的注音)
             const cacheKey = currentZhuyin ? `vocab_${char}_${currentZhuyin}` : `vocab_${char}`;
             if(localStorage.getItem(cacheKey)) {
                 renderContent(localStorage.getItem(cacheKey));
                 return;
             }
             
+            // --- 步驟 2：強化提示詞 (Prompt Engineering) ---
+            // 加入「防呆指令」與「負向約束」，確保教育正確性
+            let promptText = `你是一位專業的台灣國小國語文老師。
+            請針對中文字「${char}」進行造詞與造句教學。
+
+            嚴格限制條件：
+            1. **鎖定讀音**：必須針對「${currentZhuyin}」這個讀音的用法進行造詞。
+               (例如：若字是「和」且讀「ㄏㄨㄛˋ」，只能造「和麵」、「暖和」等詞，絕對不可造「和平」，因為讀音不同)。
+            2. **嚴禁竄改文字**：造詞與造句內容中，**必須**保留原本的字「${char}」，**絕對不可以**用同音字取代。
+               (例如：若原字是「和」，不可因為讀音像就寫成「貨」)。
+            3. **對象**：國小學生（內容要簡單、正向、易懂）。
+
+            請直接輸出結果：
+            1. 兩個符合該讀音的常見詞彙。
+            2. 一個包含該詞彙的溫馨造句。
             
-            // --- 修改 C: 組合提示詞 ---
-            // 如果有指定注音，要明確加入 Prompt 指令
-            let promptText = `請針對「${char}」這個字`;
-            if (currentZhuyin) {
-                promptText += `（指定讀音：${currentZhuyin}）`;
-            }
-            
-            promptText += `，給國小學生：
-            1. 兩個常見造詞（必須符合指定讀音）。
-            2. 一個簡單溫馨的造句（必須符合指定讀音）。
-            
-            請直接列出內容，不要有標題或多餘的開場白。
-            格式範例：
+            格式要求（不要有標題或多餘的開場白）：
             造詞：詞彙1、詞彙2
-            造句：這裡是由詞彙組成的句子。`;
+            造句：句子內容`;
 
             try {
-                // 使用較穩定的 gemini-1.5-flash 模型
+                // 維持您設定的模型版本
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(url, {
                     method: 'POST',
