@@ -941,36 +941,50 @@
             }
         }
 
-       // 新增：朗讀功能 (修復 iPad 機器人音問題)
+       // 新增：朗讀功能 (修正版：強制破音字同音代換)
         function speakText(text) {
             window.speechSynthesis.cancel();
             
             const voices = window.speechSynthesis.getVoices();
-            
-            // 優化選聲順序：
-            // 1. Google (Chrome 瀏覽器最佳)
-            // 2. Microsoft (Edge 瀏覽器最佳)
-            // 3. Meijia (iPad/iPhone 高品質人聲)
-            // 4. Siri (iPad/iPhone Siri 語音)
             const bestVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('zh-TW')) || 
                               voices.find(v => v.name.includes('Microsoft') && v.lang.includes('zh-TW')) || 
                               voices.find(v => v.name.includes('Meijia')) || 
                               voices.find(v => v.name.includes('Siri'));
 
-            // 處理文字：分行並過濾注音
+            // 1. 取得當前的主角字與同音字
+            const targetChar = document.getElementById('char-input').value.trim();
+            let targetHomophone = null;
+
+            // 從全域變數中抓取現在選中的同音字 (例如：選了ㄏㄜˋ，同音字是「賀」)
+            if (typeof zhuyinCandidates !== 'undefined' && zhuyinCandidates.length > 0) {
+                const currentObj = zhuyinCandidates[currentZhuyinIndex];
+                if (currentObj && currentObj.homophone) {
+                    targetHomophone = currentObj.homophone;
+                }
+            }
+
+            // 2. 處理文字：分行並過濾注音
             const lines = text.split('\n').filter(line => line.trim() !== '');
 
             lines.forEach((line) => {
-                // 過濾注音與調整標點
+                // 基本清理：過濾括號內的注音、將冒號轉為逗號以利停頓
                 let textForSpeech = line.replace(/[（(].*?[)）]/g, '').replace(/：/g, '，');
+
+                // --- 關鍵修正：聽覺替身 ---
+                // 如果有同音字，且同音字跟原字不一樣 (例如 和 vs 賀)，就在「發音字串」中進行替換
+                // 畫面上依然顯示「應和」，但傳給喇叭的是「應賀」
+                if (targetChar && targetHomophone && targetChar !== targetHomophone) {
+                    // 使用 Global Replace (g) 將整句裡的目標字都換成同音字
+                    // 這樣 "微風也溫柔地在一旁應和" -> 變為 -> "微風也溫柔地在一旁應賀"
+                    // 瀏覽器就會乖乖唸出 ㄏㄜˋ
+                    textForSpeech = textForSpeech.split(targetChar).join(targetHomophone);
+                }
 
                 const u = new SpeechSynthesisUtterance(textForSpeech);
                 u.lang = 'zh-TW';
-                u.rate = 0.85; // 語速適中
+                u.rate = 0.85; 
                 u.pitch = 1.0;
 
-                // 關鍵修改：只有當我們真的找到「好聲音」時才指定
-                // 如果沒找到 (bestVoice 為空)，就不要設定 u.voice，讓 iPad 使用它預設最棒的聲音
                 if (bestVoice) {
                     u.voice = bestVoice;
                 }
