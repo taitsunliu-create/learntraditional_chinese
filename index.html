@@ -920,14 +920,43 @@
                 console.error(e);
             }
 
-            // 內部輔助函式：負責渲染文字和小喇叭 (保持不變)
+            // 內部輔助函式：負責渲染文字和小喇叭 (修正版：對齊排版)
             function renderContent(content) {
                 const cleanText = content.replace(/\*/g, '').trim();
-                const htmlText = cleanText.replace(/\n/g, '<br>');
                 
+                // --- UI 優化重點：將文字拆解為「標題」與「內容」兩欄 ---
+                // 1. 先把每一行切開
+                const lines = cleanText.split('\n').filter(line => line.trim() !== '');
+                
+                // 2. 建立 CSS Grid 結構
+                // grid-template-columns: auto 1fr; 表示左邊自動寬度(依標題長度)，右邊佔滿剩餘空間
+                let htmlGrid = '<div style="display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; text-align: left;">';
+
+                lines.forEach(line => {
+                    // 偵測冒號 (支援全形： 與 半形:)
+                    const separatorIndex = line.indexOf('：') !== -1 ? line.indexOf('：') : line.indexOf(':');
+                    
+                    if (separatorIndex !== -1) {
+                        // 如果有冒號，切成左右兩塊
+                        const label = line.substring(0, separatorIndex + 1); // 左邊：造詞：
+                        const text = line.substring(separatorIndex + 1);     // 右邊：內容...
+                        
+                        // 左欄 (標題)
+                        htmlGrid += `<div style="font-weight:bold; white-space:nowrap; color: #E67E22;">${label}</div>`;
+                        // 右欄 (內容) - 這樣換行時，文字會乖乖待在右邊，不會跑到標題下面
+                        htmlGrid += `<div>${text}</div>`;
+                    } else {
+                        // 防呆：如果沒有冒號的行，就讓它跨滿兩欄
+                        htmlGrid += `<div style="grid-column: 1 / -1;">${line}</div>`;
+                    }
+                });
+                htmlGrid += '</div>';
+
+                // 3. 組合最終 HTML
                 storyBox.innerHTML = `
                     <div style="display: flex; align-items: flex-start; gap: 15px;">
-                        <div style="flex: 1; line-height: 1.8;">${htmlText}</div>
+                        <div style="flex: 1; line-height: 1.8;">${htmlGrid}</div>
+                        
                         <button onclick="speakText(this.getAttribute('data-text'))" 
                                 data-text="${cleanText}"
                                 style="background: var(--accent-color); border: none; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
